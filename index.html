@@ -1,9 +1,59 @@
 <!DOCTYPE html>
-<html>
+<html lang="tr">
 <head>
-    <meta http-equiv="refresh" content="0; url=Alfa3Dplanner.html" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alfa 3D Engine - Başlatılıyor...</title>
+    <!-- Asıl uygulamaya otomatik yönlendirme -->
+    <meta http-equiv="refresh" content="1; url=Alfa3Dplanner.html" />
+    <style>
+        body {
+            background-color: #0b0f19; /* V4 Motoruyla uyumlu koyu arka plan */
+            color: #f3f4f6;
+            font-family: '-apple-system', BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        .loader-container {
+            text-align: center;
+        }
+        .brand {
+            font-size: 28px;
+            font-weight: 900;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+        }
+        .brand span {
+            color: #10b981; /* Başarı yeşili */
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #2563eb; /* Mavi vurgu */
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px auto;
+        }
+        .text {
+            font-size: 14px;
+            color: #9ca3af;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body>
-    <p>Loading Alfa 3D Ultimate Engine...</p>
+    <div class="loader-container">
+        <div class="brand">ALFA<span>3D PRO</span></div>
+        <div class="spinner"></div>
+        <div class="text">Motor başlatılıyor, çalışma alanına yönlendiriliyorsunuz...</div>
+    </div>
 </body>
 </html>
