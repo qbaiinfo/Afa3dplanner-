@@ -30,30 +30,44 @@ const translations = {
     }
 };
 
-function switchLanguage(lang, e) {
-    document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
-    if(e && e.target) e.target.classList.add('active');
+let currentLang = 'ru';
 
-    document.querySelectorAll('[data-lang-key]').forEach(element => {
-        const key = element.getAttribute('data-lang-key');
-        if (translations[lang][key]) {
-            element.innerText = translations[lang][key];
-        }
-    });
+function switchLanguage(lang) {
+    currentLang = lang;
+    
+    document.getElementById('btn-ru').classList.remove('active');
+    document.getElementById('btn-kk').classList.remove('active');
+    document.getElementById('btn-' + lang).classList.add('active');
+
+    const t = translations[lang];
+    document.getElementById('btn-tab-room').innerText = t.tab_room;
+    document.getElementById('btn-tab-modules').innerText = t.tab_modules;
+    document.getElementById('lbl-room-settings').innerText = t.room_settings;
+    document.getElementById('lbl-width').innerText = t.width;
+    document.getElementById('lbl-depth').innerText = t.depth;
+    document.getElementById('lbl-height').innerText = t.height;
+    document.getElementById('btn-update').innerText = t.update_btn;
+    document.getElementById('lbl-lower-modules').innerText = t.lower_modules;
+    document.getElementById('lbl-upper-modules').innerText = t.upper_modules;
+    document.getElementById('lbl-mod-std').innerText = t.mod_std_60;
+    document.getElementById('lbl-mod-sink').innerText = t.mod_sink_80;
+    document.getElementById('lbl-mod-top').innerText = t.mod_top_60;
 }
 
 function switchTab(tabId) {
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    document.getElementById('btn-tab-room').classList.remove('active');
+    document.getElementById('btn-tab-modules').classList.remove('active');
+    document.getElementById('tab-room').classList.remove('active');
+    document.getElementById('tab-modules').classList.remove('active');
     
-    event.target.classList.add('active');
+    document.getElementById('btn-tab-' + tabId).classList.add('active');
     document.getElementById('tab-' + tabId).classList.add('active');
 }
 
 // --- THREE.JS ENGINE ---
 const container = document.getElementById('canvas-container');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x111827); // Slate 900 premium koyu arka plan
+scene.background = new THREE.Color(0x111827);
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(3, 4, 5);
@@ -69,7 +83,7 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.maxPolarAngle = Math.PI / 2 - 0.01;
 
-// --- IŞIKLANDIRMA (VAY BE ETKİSİ İÇİN STÜDYO AYARI) ---
+// --- LIGHTS ---
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
 scene.add(ambientLight);
 
@@ -80,7 +94,6 @@ dirLight.shadow.mapSize.width = 2048;
 dirLight.shadow.mapSize.height = 2048;
 scene.add(dirLight);
 
-// --- GRUPLAR ---
 let roomGroup = new THREE.Group();
 let modulesGroup = new THREE.Group();
 scene.add(roomGroup);
@@ -96,9 +109,8 @@ function drawRoom(width, depth, height) {
     const d = depth / 1000;
     const h = height / 1000;
 
-    // Premium Malzemeler
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6, metalness: 0.1 }); // Modern antrasit zemin
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.9 }); // Parlak temiz soft beyaz
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6, metalness: 0.1 });
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.9 });
 
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, d), floorMat);
     floor.rotation.x = -Math.PI / 2;
@@ -121,7 +133,6 @@ function drawRoom(width, depth, height) {
     roomGroup.add(gridHelper);
 }
 
-// --- PARAMETRİK MOBİLYA MODÜLÜ OLUŞTURMA MANTIĞI ---
 function addKitchenModule(w_mm, h_mm, d_mm, type) {
     const w = w_mm / 1000;
     const h = h_mm / 1000;
@@ -129,45 +140,36 @@ function addKitchenModule(w_mm, h_mm, d_mm, type) {
 
     const moduleGroup = new THREE.Group();
 
-    // Gövde ve kapak için premium ahşap/lake malzemesi
     const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.7 });
-    const frontMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.4, metalness: 0.1 }); // Şık okyanus mavisi kapaklar
-    const handleMat = new THREE.MeshStandardMaterial({ color: 'gold', roughness: 0.2, metalness: 0.8 }); // Altın sarısı kulplar
+    const frontMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.4, metalness: 0.1 });
+    const handleMat = new THREE.MeshStandardMaterial({ color: 'gold', roughness: 0.2, metalness: 0.8 });
 
-    // Ana Gövde (Kutu)
-    const bodyGeo = new THREE.BoxGeometry(w, h, d);
-    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bodyMat);
     body.position.y = h / 2;
     body.castShadow = true;
     body.receiveShadow = true;
     moduleGroup.add(body);
 
-    // Ön Kapak Detayı (Gerçekçi görünüm katmak için)
-    const doorGeo = new THREE.BoxGeometry(w - 0.004, h - 0.004, 0.01);
-    const door = new THREE.Mesh(doorGeo, frontMat);
+    const door = new THREE.Mesh(new THREE.BoxGeometry(w - 0.004, h - 0.004, 0.01), frontMat);
     door.position.set(0, h / 2, d / 2 + 0.005);
     door.castShadow = true;
     moduleGroup.add(door);
 
-    // Kulp Detayı
-    const handleGeo = new THREE.BoxGeometry(0.12, 0.015, 0.015);
-    const handle = new THREE.Mesh(handleGeo, handleMat);
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.015, 0.015), handleMat);
     handle.position.set(0, h - 0.1, d / 2 + 0.015);
     moduleGroup.add(handle);
 
-    // Konumlandırma (Arka duvara sıfırla ve otomatik yan yana dizilmesi için basit algoritma)
     const existingCount = modulesGroup.children.length;
-    const initialX = - (currentRoom.w / 2000) + (w / 2) + (existingCount * 0.6);
+    const initialX = - (currentRoom.w / 2000) + (w / 2) + (existingCount * 0.65);
     const initialZ = - (currentRoom.d / 2000) + (d / 2);
     let initialY = 0;
 
     if(type === 'upper') {
-        initialY = (1400 / 1000); // Üst modülleri tezgah hizasına kaldır (1400mm yukarı)
+        initialY = 1.4;
     }
 
     moduleGroup.position.set(initialX, initialY, initialZ);
 
-    // "Vay be" Canlılık Animasyonu (Spawn scale effect)
     moduleGroup.scale.set(0, 0, 0);
     modulesGroup.add(moduleGroup);
 
