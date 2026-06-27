@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alfa 3D Design - Planner</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: sans-serif; background-color: #1a1a1a; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        
+        /* Kontrol Paneli */
+        #control-panel {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px; border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            z-index: 10; width: 260px;
+        }
+        .panel-title { margin-top: 0; color: #2c3e50; font-size: 18px; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        .input-group { margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .input-group label { font-weight: bold; color: #555; font-size: 14px; }
+        .input-group input { width: 100px; padding: 6px; border: 1px solid #ccc; border-radius: 4px; text-align: right; }
+        
+        button { 
+            width: 100%; padding: 10px; background: #27ae60; 
+            color: white; border: none; border-radius: 6px; cursor: pointer;
+            font-size: 14px; font-weight: bold; transition: background 0.2s;
+        }
+        button:hover { background: #219653; }
+
+        /* Dil Seçici (Sağ Üst köşe) */
+        #lang-switcher {
+            position: absolute; top: 20px; right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px 12px; border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            z-index: 10; display: flex; gap: 8px;
+        }
+        .lang-btn {
+            background: #e0e0e0; border: none; padding: 4px 10px;
+            border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px;
+        }
+        .lang-btn.active { background: #2980b9; color: white; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <!-- Dil Seçici Panel -->
+    <div id="lang-switcher">
+        <button class="lang-btn active" onclick="switchLanguage('ru')">RU</button>
+        <button class="lang-btn" onclick="switchLanguage('kk')">KK</button>
+    </div>
+
+    <!-- Kontrol Paneli -->
+    <div id="control-panel">
+        <h3 class="panel-title" data-lang-key="room_settings">Размеры помещения (мм)</h3>
+        <div class="input-group">
+            <label data-lang-key="width">Ширина (X):</label>
+            <input type="number" id="room-width" value="3200">
+        </div>
+        <div class="input-group">
+            <label data-lang-key="depth">Глубина (Z):</label>
+            <input type="number" id="room-depth" value="4000">
+        </div>
+        <div class="input-group">
+            <label data-lang-key="height">Высота (Y):</label>
+            <input type="number" id="room-height" value="2500">
+        </div>
+        <button onclick="updateRoomDimensions()" data-lang-key="update_btn">Обновить комнату</button>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script src="Alfa3Dplanner.js"></script>
+</body>
+</html>
