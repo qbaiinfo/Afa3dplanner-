@@ -6,6 +6,8 @@
 <title>Alfa 3D Planner — Редактор</title>
 <script>
 window.addEventListener('error', function(e){
+  // Harici CDN'den gelen detaysız "Script error." mesajlarını yok say (genelde zararsız CORS)
+  if(!e.message || e.message === 'Script error.' || e.lineno === 0) return;
   var box = document.getElementById('errBox');
   if(!box){
     box = document.createElement('div');
@@ -198,7 +200,7 @@ window.addEventListener('error', function(e){
   <div class="topbar-left">
     <button class="back-btn" onclick="goBack()">← Назад</button>
     <div class="topbar-title" id="projectTitle">Проект</div>
-    <span style="font-size:9px;color:#334155;margin-left:6px">v2.2</span>
+    <span style="font-size:9px;color:#334155;margin-left:6px">v2.3</span>
   </div>
   <div class="topbar-actions">
     <button class="tb-btn" onclick="undo()">↶<span class="lbl"> Отмена</span></button>
@@ -273,12 +275,16 @@ window.addEventListener('error', function(e){
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
 // ═══════════════ ИНИЦИАЛИЗАЦИЯ ═══════════════
 const SUPABASE_URL = 'https://fciofuexujtxxjlamxno.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjaW9mdWV4dWp0eHhqbGFteG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNTYwOTcsImV4cCI6MjA5NTczMjA5N30.dDvtfabQ6xHmSd5NDntme2ggJpzNKLtXovFFDW2Kc80';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let supabase = null;
+try {
+  if(window.supabase && window.supabase.createClient){
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+} catch(e){ console.error('Supabase init:', e); }
 
 // Get project ID from URL
 const urlParams = new URLSearchParams(window.location.search);
@@ -446,22 +452,23 @@ let camAngle = {theta:0.7, phi:0.9, radius:7};
 let camTarget = new THREE.Vector3(0, 1, 0);
 
 async function init(){
-  renderCatalog();  // sol menüyü oluştur (proje yüklenmese de görünsün)
-  setupMobileDrawer();  // mobil çekmece kontrolleri
+  // 1. Katalog ve mobil çekmece - EN ÖNEMLİSİ, başta ve korumalı
+  try { renderCatalog(); } catch(e){ console.error('renderCatalog:', e); }
+  try { setupMobileDrawer(); } catch(e){ console.error('setupMobileDrawer:', e); }
 
-  if(!projectId){
-    alert('Проект не найден');
-    goBack();
-    return;
+  // 2. Three.js sahnesini başlat (proje olmasa da boş sahne görünsün)
+  try { initThree(); } catch(e){ console.error('initThree:', e); }
+
+  // 3. Proje yükle
+  if(projectId && supabase){
+    try {
+      await loadProject();
+      renderScene();
+    } catch(e){ console.error('loadProject:', e); }
   }
 
-  // Загрузить проект
-  await loadProject();
-
-  // Three.js setup
-  initThree();
-  renderProperties();
-  console.log('✅ Editor loaded for project:', projectId);
+  try { renderProperties(); } catch(e){ console.error('renderProperties:', e); }
+  console.log('✅ Editor init tamam');
 }
 
 function setupMobileDrawer(){
@@ -476,7 +483,6 @@ function setupMobileDrawer(){
   fab.addEventListener('click', openDrawer);
   overlay.addEventListener('click', closeDrawer);
 
-  // modül seçilince çekmeceyi kapat (mobilde)
   sidebar.addEventListener('click', function(e){
     if(e.target.closest('.module-btn') && window.innerWidth <= 768){
       setTimeout(closeDrawer, 150);
@@ -487,14 +493,12 @@ function setupMobileDrawer(){
 async function loadProject(){
   const {data, error} = await supabase.from('alfa_3d_projects').select('*').eq('id', projectId).single();
   if(error || !data){
-    alert('Ошибка загрузки проекта');
-    goBack();
+    console.error('Проект не загружен:', error);
     return;
   }
   currentProject = data;
-  document.getElementById('projectTitle').textContent = data.project_name;
-  
-  // Загрузить модули
+  const titleEl = document.getElementById('projectTitle');
+  if(titleEl) titleEl.textContent = data.project_name || 'Проект';
   modules = data.modules || [];
   updateStats();
 }
@@ -619,6 +623,7 @@ function addModule(type){
 }
 
 function renderScene(){
+  if(!scene){ return; }  // Three.js hazır değilse çık
   // Clear old meshes
   scene.children = scene.children.filter(o => !(o.userData && o.userData.isModule));
 
@@ -651,19 +656,17 @@ function updateStats(){
   const facade = (count * 0.3).toFixed(2);
   const edge = (count * 2.5).toFixed(1);
 
-  document.getElementById('statModules').textContent = count;
-  document.getElementById('statBoard').textContent = board;
-  document.getElementById('statFacade').textContent = facade;
-  document.getElementById('statEdge').textContent = edge;
+  const sm = document.getElementById('statModules'); if(sm) sm.textContent = count;
+  const sb2 = document.getElementById('statBoard'); if(sb2) sb2.textContent = board;
+  const sf = document.getElementById('statFacade'); if(sf) sf.textContent = facade;
+  const se = document.getElementById('statEdge'); if(se) se.textContent = edge;
 }
 
 function renderProperties(){
-  const html = `
-    <div style="font-size:12px;color:var(--gray)">
-      ${modules.length ? 'Выберите модуль на сцене' : 'Модулей нет'}
-    </div>
-  `;
-  document.getElementById('propsContent').innerHTML = html;
+  const el = document.getElementById('propsContent');
+  if(!el) return;
+  el.innerHTML = '<div style="font-size:12px;color:var(--gray)">' +
+    (modules.length ? 'Выберите модуль на сцене' : 'Модулей нет') + '</div>';
 }
 
 function openBOMModal(){
@@ -757,8 +760,12 @@ function animate(){
   renderer.render(scene, camera);
 }
 
-// Init
-init();
+// Init - DOM hazır olunca
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
 </script>
 
 </body>
