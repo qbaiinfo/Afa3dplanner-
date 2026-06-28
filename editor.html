@@ -63,7 +63,7 @@
 
   /* ── PALETTE DRAWER (modül listesi) ── */
   .palette{position:fixed;left:0;right:0;bottom:100px;background:var(--dark2);z-index:84;
-    max-height:46vh;overflow-y:auto;transform:translateY(110%);transition:transform .28s ease;
+    max-height:46vh;overflow-y:auto;transform:translateY(150vh);transition:transform .28s ease;
     border-top:2px solid var(--orange);border-radius:14px 14px 0 0;padding:10px 0 14px}
   .palette.open{transform:translateY(0)}
   .palette-head{display:flex;align-items:center;justify-content:space-between;padding:4px 16px 10px;
@@ -80,7 +80,7 @@
 
   /* ── PROPS PANEL (seçili modül) ── */
   .props{position:fixed;left:0;right:0;bottom:100px;background:var(--dark2);z-index:86;
-    max-height:50vh;overflow-y:auto;transform:translateY(120%);transition:transform .28s ease;
+    max-height:50vh;overflow-y:auto;transform:translateY(150vh);transition:transform .28s ease;
     border-top:2px solid var(--green);border-radius:14px 14px 0 0;padding:14px 16px 20px}
   .props.open{transform:translateY(0)}
   .props-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
@@ -113,13 +113,13 @@
     .ptab.active{border-top-color:transparent;border-left-color:var(--orange)}
     .palette{left:84px;width:280px;right:auto;top:52px;bottom:46px;max-height:none;
       border-radius:0;border-top:none;border-right:2px solid var(--orange);
-      transform:translateX(-120%)}
+      transform:translateX(-120vw)}
     .palette.open{transform:translateX(0)}
     .palette-grid{grid-template-columns:1fr 1fr}
     #canvas-wrap{left:84px}
     .infobar{left:84px}
     .props{left:auto;right:0;top:52px;bottom:46px;width:300px;max-height:none;
-      border-radius:0;border-top:none;border-left:2px solid var(--green);transform:translateX(120%)}
+      border-radius:0;border-top:none;border-left:2px solid var(--green);transform:translateX(120vw)}
     .props.open{transform:translateX(0)}
     .empty-hint{left:calc(50% + 42px)}
   }
@@ -139,7 +139,7 @@
   <div class="tb-left">
     <button class="tb-back" onclick="goBack()">←</button>
     <span class="tb-title" id="projTitle">Проект</span>
-    <span class="tb-ver">v3.0</span>
+    <span class="tb-ver">v3.1</span>
   </div>
   <div class="tb-actions">
     <button class="tb-btn" onclick="undo()" title="Отмена">↶</button>
@@ -651,6 +651,11 @@ function loadProject(){
 
 // ════════ INIT ════════
 function init(){
+  // panelleri kesin kapat
+  var pl=document.getElementById('palette'); if(pl) pl.classList.remove('open');
+  var pr=document.getElementById('props'); if(pr) pr.classList.remove('open');
+  var ov=document.getElementById('overlay'); if(ov) ov.classList.remove('open');
+
   try{ renderTabs(); }catch(e){ showErr('renderTabs: '+e.message); }
   try{ initThree(); }catch(e){ showErr('initThree: '+e.message); }
   loadProject().then(function(){ updateStats(); }).catch(function(e){ console.error(e); });
