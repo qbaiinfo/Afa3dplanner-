@@ -154,7 +154,7 @@
   <div class="tb-left">
     <button class="tb-back" onclick="goBack()">←</button>
     <span class="tb-title" id="projTitle">Проект</span>
-    <span class="tb-ver">v4.5</span>
+    <span class="tb-ver">v4.7</span>
   </div>
   <div class="tb-actions">
     <button class="tb-btn" onclick="toggleList()" title="Список">📑</button>
@@ -205,10 +205,25 @@
     <button class="view-btn" onclick="setView('front')">▢</button>
     <button class="view-btn" onclick="resetCam()">⟲</button>
   </div>
+  <!-- Taşıma modu toggle -->
+  <button id="moveModeBtn" onclick="toggleMoveMode()" style="position:absolute;left:12px;top:12px;z-index:15;
+    padding:10px 14px;border-radius:24px;border:none;background:var(--panel);color:var(--ink);
+    font-size:13px;font-weight:800;box-shadow:var(--shadow);cursor:pointer;display:flex;align-items:center;gap:6px">
+    ✋ <span id="moveModeLbl">Поворот камеры</span>
+  </button>
   <div class="empty-hint" id="emptyHint">
     <div class="big">🪑</div>
     <p>Выберите категорию снизу и добавьте модули</p>
   </div>
+</div>
+
+<!-- Seçili modül için hızlı eylem çubuğu -->
+<div id="editFab" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:118px;z-index:88;
+  background:var(--panel);border-radius:14px;box-shadow:var(--shadow-lg);padding:8px 10px;align-items:center;gap:8px;
+  border:1px solid var(--line)">
+  <span id="editFabName" style="font-size:12px;font-weight:700;color:var(--ink);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Модуль</span>
+  <button onclick="openProps()" style="padding:8px 12px;border-radius:9px;border:none;background:var(--orange);color:#fff;font-size:12px;font-weight:800;cursor:pointer">✏️ Изменить</button>
+  <button onclick="deselectModule()" style="width:32px;height:32px;border-radius:50%;border:1px solid var(--line);background:var(--panel2);font-size:14px;cursor:pointer">✕</button>
 </div>
 
 <div class="infobar">
@@ -333,7 +348,7 @@ var modules=[], selected=null, project=null;
 var roomGroup=null;
 var room={ width:4.0, depth:3.0, height:2.7, floor:'parquet', wall:'#eef1f5', countertop:true, ctColor:0x3a3a3a };
 var hist=[], histIdx=-1;
-var camA={theta:0.8,phi:0.95,radius:6}, camT;
+var camA={theta:0.8,phi:0.92,radius:4.2}, camT;
 var activeTab=null;
 
 // ════════ THREE INIT ════════
@@ -353,24 +368,23 @@ function initThree(){
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
   renderer.setSize(W,H);
   renderer.shadowMap.enabled=true;
-  renderer.shadowMap.type=THREE.PCFSoftShadowMap;  // yumuşak gölge
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  if(THREE.ACESFilmicToneMapping!==undefined){ renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.15; }
   wrap.appendChild(renderer.domElement);
 
-  // gökyüzü/zemin ortam ışığı (daha doğal)
-  scene.add(new THREE.HemisphereLight(0xffffff,0xe2e8f0,0.6));
-  scene.add(new THREE.AmbientLight(0xffffff,0.45));
-  // ana ışık (gölge veren)
-  var dl=new THREE.DirectionalLight(0xffffff,0.85);
-  dl.position.set(4,9,6); dl.castShadow=true;
+  // canlı, dengeli ışık
+  scene.add(new THREE.HemisphereLight(0xffffff,0xd8dde5,0.85));
+  scene.add(new THREE.AmbientLight(0xffffff,0.55));
+  var dl=new THREE.DirectionalLight(0xffffff,1.0);
+  dl.position.set(5,9,6); dl.castShadow=true;
   dl.shadow.mapSize.width=2048; dl.shadow.mapSize.height=2048;
   dl.shadow.camera.near=0.5; dl.shadow.camera.far=30;
   dl.shadow.camera.left=-8; dl.shadow.camera.right=8;
   dl.shadow.camera.top=8; dl.shadow.camera.bottom=-8;
   dl.shadow.bias=-0.0005;
   scene.add(dl);
-  // dolgu ışığı (gölgeleri yumuşat)
-  var dl2=new THREE.DirectionalLight(0xffffff,0.3);
-  dl2.position.set(-5,4,-4); scene.add(dl2);
+  var dl2=new THREE.DirectionalLight(0xffffff,0.4);
+  dl2.position.set(-5,4,-3); scene.add(dl2);
 
   // oda (zemin + duvarlar) - dinamik
   buildRoom();
@@ -402,12 +416,29 @@ function updateCam(){
 }
 
 function setView(t){
-  if(t==='top') camA={theta:Math.PI/2,phi:0.05,radius:7};
-  else if(t==='front') camA={theta:Math.PI/2,phi:Math.PI/2-0.05,radius:6};
-  else camA={theta:0.8,phi:0.95,radius:6};
+  if(t==='top') camA={theta:Math.PI/2,phi:0.05,radius:5.5};
+  else if(t==='front') camA={theta:Math.PI/2,phi:Math.PI/2-0.05,radius:4.5};
+  else camA={theta:0.8,phi:0.92,radius:4.2};
   updateCam();
 }
 function resetCam(){ camT.set(0,0.8,0); setView('3d'); }
+
+// ✋ Taşıma modu: açıkken parmak modülü taşır, kapalıyken kamera döner
+var moveMode=false;
+function toggleMoveMode(){
+  moveMode=!moveMode;
+  var btn=document.getElementById('moveModeBtn');
+  var lbl=document.getElementById('moveModeLbl');
+  if(moveMode){
+    btn.style.background='var(--orange)'; btn.style.color='#fff';
+    lbl.textContent='Перемещение ✓';
+    btn.firstChild.textContent='✋ ';
+  } else {
+    btn.style.background='var(--panel)'; btn.style.color='var(--ink)';
+    lbl.textContent='Поворот камеры';
+    btn.firstChild.textContent='🔄 ';
+  }
+}
 
 function setupControls(el){
   var lx,ly,mode=null,pdist=0;
@@ -443,7 +474,10 @@ function setupControls(el){
 
   el.addEventListener('mousedown',function(e){
     var hit=modAt(e.clientX,e.clientY);
-    if(e.button===0 && hit){ mode='drag'; dragMod=hit; selectModule(hit); }
+    // Taşıma modu açık VE modüle (veya seçili modül var) → taşı
+    if(e.button===0 && moveMode && (hit||selected)){
+      mode='drag'; dragMod=hit||selected; if(dragMod!==selected) selectModule(dragMod);
+    }
     else { mode=(e.button===2?'pan':'rot'); }
     lx=e.clientX; ly=e.clientY;
   });
@@ -476,9 +510,9 @@ function setupControls(el){
     if(e.touches.length===1){
       lx=e.touches[0].clientX; ly=e.touches[0].clientY;
       var hit=modAt(lx,ly);
-      // modüle dokunursan taşı (seç + sürükle), boşlukta kamera döndür
-      if(hit){ mode='drag'; dragMod=hit; if(hit!==selected) selectModule(hit); }
-      else { mode='rot'; }
+      // Taşıma modu açık → modülü taşı. Kapalı → her zaman kamera (dokun=seç touchend'de)
+      if(moveMode && (hit||selected)){ mode='drag'; dragMod=hit||selected; if(dragMod!==selected) selectModule(dragMod); }
+      else { mode='rot'; if(hit) dragMod=hit; } // hit'i sakla, hareket etmezse touchend seçer
     } else if(e.touches.length===2){ mode='pinch'; pdist=tdist(e); }
   },{passive:false});
   el.addEventListener('touchmove',function(e){
@@ -778,10 +812,10 @@ function buildMesh(mod){
     }
   }
 
-  // ── seçim çerçevesi (highlight) ──
-  var box=new THREE.LineSegments(
-    new THREE.EdgesGeometry(new THREE.BoxGeometry(w,h,d)),
-    new THREE.LineBasicMaterial({color:0xf97316,transparent:true,opacity:0})
+  // ── seçim çerçevesi (highlight) - belirgin turuncu kabuk ──
+  var box=new THREE.Mesh(
+    new THREE.BoxGeometry(w+0.025,h+0.025,d+0.025),
+    new THREE.MeshBasicMaterial({color:0xf97316,transparent:true,opacity:0,side:THREE.BackSide})
   );
   box.userData.selBox=true;
   g.add(box);
@@ -848,10 +882,22 @@ function buildCountertop(){
 function selectModule(mod){
   selected=mod;
   modules.forEach(function(m){
-    if(m._selBox) m._selBox.material.opacity = (m===mod?1:0);
+    if(m._selBox) m._selBox.material.opacity = (m===mod?0.5:0);
   });
   renderProps();
-  openProps();
+  // panel otomatik açılmaz - kullanıcı "düzenle" butonuna basınca açılır
+  showEditFab();
+}
+
+// seçili modül varken çıkan küçük "düzenle" + "taşı" butonu
+function showEditFab(){
+  var fab=document.getElementById('editFab');
+  if(fab) fab.style.display = selected ? 'flex' : 'none';
+  var nm=document.getElementById('editFabName');
+  if(nm && selected) nm.textContent=selected.name;
+}
+function hideEditFab(){
+  var fab=document.getElementById('editFab'); if(fab) fab.style.display='none';
 }
 
 function deleteSelected(){
@@ -1033,6 +1079,11 @@ function renderProps(){
         dimBox('Высота','h',m.h)+
         dimBox('Глубина','d',m.d)+
       '</div>'+
+      '<div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap">'+
+        [300,400,450,500,600,800,900,1000].map(function(ww){
+          return '<button onclick="setDimMM(\'w\','+ww+');renderProps()" style="flex:1;min-width:42px;padding:7px 4px;border-radius:7px;border:1px solid '+(Math.round(m.w*1000)===ww?'var(--orange)':'var(--line)')+';background:'+(Math.round(m.w*1000)===ww?'#fff7ed':'var(--panel2)')+';font-size:11px;font-weight:700;color:var(--ink);cursor:pointer">'+ww+'</button>';
+        }).join('')+
+      '</div>'+
     '</div>'+
     '<div class="prop-row"><label>Цвет фасада</label><div class="color-grid">'+
       COLORS.map(function(c){ return '<div class="csw'+(c.hex===m.color?' active':'')+'" style="background:'+c.hex+'" onclick="setColor(\''+c.hex+'\')"></div>'; }).join('')+
@@ -1111,12 +1162,24 @@ function nudge(dx,dz){
   pushHist();
 }
 
+// modülü oda sınırları içinde tut (duvarı aşmasın)
+function clampToRoom(m){
+  var halfW=room.width/2, halfD=room.depth/2;
+  // x: sol/sağ duvar arası
+  var minX=-halfW + m.w/2, maxX=halfW - m.w/2;
+  if(m.x<minX) m.x=minX; if(m.x>maxX) m.x=maxX;
+  // z: arka duvardan öne (arka duvar -halfD, ön açık ama oda içinde tut)
+  var minZ=-halfD + m.d/2, maxZ=halfD - m.d/2;
+  if(m.z<minZ) m.z=minZ; if(m.z>maxZ) m.z=maxZ;
+}
+
 // modülün doğru y (yükseklik) konumunu uygula - alt yerde, üst yukarıda
 function modBaseY(m){
   if(m.type.indexOf('wall')===0) return 1.45 + m.h/2;   // üst dolap (asılı)
   return m.h/2;                                          // alt/penal: zeminde
 }
 function applyModPos(m){
+  clampToRoom(m);
   if(m.mesh){ m.mesh.position.set(m.x, modBaseY(m), m.z); if(m.rot) m.mesh.rotation.y=m.rot; }
 }
 
@@ -1182,7 +1245,7 @@ function rebuildSelected(){
   if(!selected) return;
   if(selected.mesh) scene.remove(selected.mesh);
   buildMesh(selected);
-  if(selected._selBox) selected._selBox.material.opacity=1;
+  if(selected._selBox) selected._selBox.material.opacity=0.5;
   layoutRow(); renderProps();
 }
 
@@ -1192,7 +1255,7 @@ function setDim(axis,val){
   m[axis]=mm;
   if(m.mesh){ scene.remove(m.mesh); }
   buildMesh(m);
-  if(m._selBox) m._selBox.material.opacity=1;
+  if(m._selBox) m._selBox.material.opacity=0.5;
   layoutRow(); updateStats(); renderProps();
 }
 function setColor(hex){
@@ -1200,7 +1263,7 @@ function setColor(hex){
   selected.color=hex;
   if(selected.mesh) scene.remove(selected.mesh);
   buildMesh(selected);
-  if(selected._selBox) selected._selBox.material.opacity=1;
+  if(selected._selBox) selected._selBox.material.opacity=0.5;
   layoutRow();
   renderProps();
 }
@@ -1211,15 +1274,23 @@ function setFinish(f){
 }
 
 function openProps(){
+  if(!selected) return;
   document.getElementById('props').classList.add('open');
   document.getElementById('palette').classList.remove('open');
   if(window.innerWidth<900) document.getElementById('overlay').classList.add('open');
 }
 function closeProps(){
+  // sadece paneli kapat, seçim devam etsin (FAB kalır)
+  document.getElementById('props').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+}
+// seçimi tamamen iptal et (FAB'daki ✕)
+function deselectModule(){
   document.getElementById('props').classList.remove('open');
   document.getElementById('overlay').classList.remove('open');
   modules.forEach(function(m){ if(m._selBox) m._selBox.material.opacity=0; });
   selected=null;
+  hideEditFab();
 }
 function closeAll(){ closePalette(); closeProps(); closeList(); }
 
