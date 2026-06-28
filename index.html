@@ -3,20 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Alfa 3D Planner — Проектирование мебели</title>
-<script>
-// GLOBAL HATA YAKALAYICI - ekranda gösterir
-window.addEventListener('error', function(e){
-  var box = document.getElementById('errBox') || (function(){
-    var d = document.createElement('div');
-    d.id = 'errBox';
-    d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#dc2626;color:#fff;padding:14px;z-index:99999;font-family:monospace;font-size:13px;white-space:pre-wrap;word-break:break-all';
-    document.body.appendChild(d);
-    return d;
-  })();
-  box.textContent = '❌ ОШИБКА: ' + e.message + '\nФайл: ' + (e.filename||'').split('/').pop() + ' :' + e.lineno;
-});
-</script>
+<title>Alfa 3D Planner</title>
 <style>
   :root{
     --orange:#f97316; --orange-dark:#ea580c; --dark:#0f172a; --dark2:#1e293b;
@@ -24,119 +11,75 @@ window.addEventListener('error', function(e){
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#0a0e1a;color:#e2e8f0;min-height:100vh;padding:20px}
+  .ver{position:fixed;bottom:6px;right:10px;font-size:10px;color:#334155;z-index:10}
 
-  /* Header */
-  .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;padding:0 20px}
+  .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;padding:0 20px;flex-wrap:wrap;gap:12px}
   .logo{font-weight:900;font-size:24px;letter-spacing:1px}
   .logo span{color:var(--orange)}
   .header-actions{display:flex;gap:12px}
-  .btn-primary{padding:10px 16px;background:var(--orange);color:#fff;border:none;border-radius:8px;
-    font-weight:700;cursor:pointer;font-size:14px;transition:.2s}
+  .btn-primary{padding:10px 16px;background:var(--orange);color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;transition:.2s}
   .btn-primary:hover{background:var(--orange-dark)}
-  .btn-ghost{padding:10px 16px;background:transparent;color:#e2e8f0;border:1px solid rgba(255,255,255,.2);
-    border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;transition:.2s}
+  .btn-ghost{padding:10px 16px;background:transparent;color:#e2e8f0;border:1px solid rgba(255,255,255,.2);border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;transition:.2s}
   .btn-ghost:hover{background:rgba(255,255,255,.08)}
 
-  /* Projects Grid */
   .projects-container{max-width:1400px;margin:0 auto}
   .projects-title{font-size:18px;font-weight:700;margin-bottom:16px;padding:0 20px}
   .projects-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;padding:0 20px}
 
-  /* Project Card */
-  .project-card{background:var(--dark2);border:1px solid rgba(255,255,255,.1);border-radius:12px;
-    padding:16px;cursor:pointer;transition:.3s;position:relative;overflow:hidden}
+  .project-card{background:var(--dark2);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:16px;cursor:pointer;transition:.3s;position:relative;overflow:hidden}
   .project-card:hover{background:var(--dark);border-color:var(--orange);transform:translateY(-4px);box-shadow:0 8px 16px rgba(249,115,22,.2)}
-  .project-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--orange);transform:scaleX(0);transition:.3s}
-  .project-card:hover::before{transform:scaleX(1)}
-
   .project-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
   .project-name{font-weight:700;font-size:15px}
   .project-date{font-size:11px;color:var(--gray)}
   .project-customer{font-size:13px;color:#cbd5e1;margin-bottom:8px}
   .project-stats{display:flex;gap:12px;font-size:12px;color:var(--gray);margin-bottom:12px}
-  .project-status{display:inline-block;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:700;
-    background:rgba(22,163,74,.2);color:var(--green)}
-  .project-status.draft{background:rgba(100,116,139,.2);color:var(--gray)}
+  .project-status{display:inline-block;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:700;background:rgba(100,116,139,.2);color:var(--gray)}
   .project-status.approved{background:rgba(34,197,94,.2);color:#22c55e}
   .project-status.rejected{background:rgba(220,38,38,.2);color:#ef4444}
-
+  .project-status.sent{background:rgba(249,115,22,.2);color:var(--orange)}
   .project-actions{display:flex;gap:8px;margin-top:12px}
   .project-actions button{flex:1;padding:8px;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;transition:.2s}
   .edit-btn{background:var(--orange);color:#fff}
-  .edit-btn:hover{background:var(--orange-dark)}
-  .delete-btn{background:rgba(220,38,38,.2);color:#ef4444;border:1px solid rgba(220,38,38,.4)}
-  .delete-btn:hover{background:rgba(220,38,38,.3)}
+  .delete-btn{background:rgba(220,38,38,.2);color:#ef4444;border:1px solid rgba(220,38,38,.4);flex:0 0 auto;padding:8px 12px}
 
-  /* New Project Card */
-  .new-project-card{background:rgba(249,115,22,.1);border:2px dashed var(--orange);border-radius:12px;
-    padding:32px 16px;text-align:center;cursor:pointer;transition:.3s;display:flex;
-    flex-direction:column;align-items:center;justify-content:center;min-height:180px}
-  .new-project-card:hover{background:rgba(249,115,22,.15);border-color:var(--orange-dark)}
+  .new-project-card{background:rgba(249,115,22,.1);border:2px dashed var(--orange);border-radius:12px;padding:32px 16px;text-align:center;cursor:pointer;transition:.3s;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:180px}
+  .new-project-card:hover{background:rgba(249,115,22,.15)}
   .new-project-card .big-icon{font-size:32px;margin-bottom:8px}
   .new-project-card p{font-size:14px;font-weight:700;color:#fff}
 
-  /* Modal */
   .modal{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px}
   .modal.open{display:flex}
-  .modal-content{background:var(--dark2);border-radius:12px;padding:28px;max-width:500px;width:100%;border:1px solid rgba(255,255,255,.1)}
+  .modal-content{background:var(--dark2);border-radius:12px;padding:28px;max-width:500px;width:100%;border:1px solid rgba(255,255,255,.1);max-height:90vh;overflow-y:auto}
   .modal-title{font-size:18px;font-weight:700;margin-bottom:20px}
   .form-group{margin-bottom:16px}
   .form-group label{display:block;font-size:12px;font-weight:700;color:var(--gray);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
-  .form-group input,.form-group select{width:100%;padding:10px 12px;background:#0f172a;border:1px solid rgba(255,255,255,.1);
-    border-radius:6px;color:#fff;font-size:14px;font-family:inherit}
-  .form-group input::placeholder{color:var(--gray)}
-  .form-group select option{background:#0f172a;color:#fff}
-
+  .form-group input{width:100%;padding:10px 12px;background:#0f172a;border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#fff;font-size:14px;font-family:inherit}
   .templates-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px}
-  .template-btn{padding:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;
-    cursor:pointer;transition:.2s;text-align:center;color:#cbd5e1;font-size:12px;font-weight:700}
-  .template-btn:hover{background:rgba(255,255,255,.1);border-color:var(--orange)}
+  .template-btn{padding:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;cursor:pointer;transition:.2s;text-align:center;color:#cbd5e1;font-size:12px;font-weight:700}
   .template-btn.selected{background:var(--orange);color:#fff;border-color:var(--orange)}
   .template-icon{font-size:20px;margin-bottom:4px;display:block}
-
   .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
-  .btn-cancel{padding:10px 16px;background:rgba(255,255,255,.08);color:#fff;border:none;border-radius:6px;
-    cursor:pointer;font-weight:700;transition:.2s}
-  .btn-cancel:hover{background:rgba(255,255,255,.15)}
+  .btn-cancel{padding:10px 16px;background:rgba(255,255,255,.08);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700}
 
-  /* Empty State */
-  .empty-state{text-align:center;padding:60px 20px}
-  .empty-state .icon{font-size:48px;margin-bottom:16px}
-  .empty-state h2{font-size:18px;font-weight:700;margin-bottom:8px}
-  .empty-state p{color:var(--gray);font-size:14px;margin-bottom:20px}
-
-  /* Responsive */
-  @media(max-width:768px){
-    .projects-grid{grid-template-columns:1fr}
-    .header{flex-direction:column;gap:16px;align-items:flex-start}
-  }
-
-  /* Loading */
-  .loading{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.2);border-top-color:var(--orange);
-    border-radius:50%;animation:spin .8s linear infinite}
-  @keyframes spin{to{transform:rotate(360deg)}}
+  @media(max-width:768px){.projects-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 
 <div class="header">
-  <div>
-    <div class="logo">ALFA<span> 3D</span> PLANNER</div>
-  </div>
+  <div class="logo">ALFA<span> 3D</span> PLANNER</div>
   <div class="header-actions">
-    <button class="btn-ghost" onclick="openSettings()">⚙️ Параметры</button>
-    <button class="btn-ghost" onclick="logout()">🚪 Выход</button>
+    <button class="btn-ghost" id="btnManager">📋 Менеджер</button>
   </div>
 </div>
 
 <div class="projects-container">
   <div class="projects-title">Мои проекты</div>
   <div class="projects-grid" id="projectsGrid">
-    <div class="new-project-card" onclick="openNewProjectModal()">
+    <div class="new-project-card" id="btnNewProject">
       <div class="big-icon">➕</div>
       <p>Новый проект</p>
     </div>
-    <div id="projectsContainer" style="display:contents"></div>
   </div>
 </div>
 
@@ -144,29 +87,22 @@ window.addEventListener('error', function(e){
 <div class="modal" id="newProjectModal">
   <div class="modal-content">
     <div class="modal-title">Новый проект</div>
-    
     <div class="form-group">
       <label>Имя проекта</label>
       <input type="text" id="projectName" placeholder="Например: Кухня Мария">
     </div>
-
     <div class="form-group">
       <label>Имя клиента</label>
       <input type="text" id="customerName" placeholder="ФИО клиента">
     </div>
-
     <div class="form-group">
       <label>Телефон клиента</label>
       <input type="tel" id="customerPhone" placeholder="+7 (7XX) XXX-XX-XX">
     </div>
-
     <div class="form-group">
       <label>Выберите шаблон</label>
-      <div class="templates-grid" id="templatesGrid">
-        <!-- JS заполнит -->
-      </div>
+      <div class="templates-grid" id="templatesGrid"></div>
     </div>
-
     <div class="form-group">
       <label>Комната (см)</label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -174,211 +110,197 @@ window.addEventListener('error', function(e){
         <input type="number" id="roomDepth" placeholder="Глубина" value="300">
       </div>
     </div>
-
     <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeModal('newProjectModal')">Отмена</button>
-      <button class="btn-primary" onclick="createProject()">Создать</button>
+      <button class="btn-cancel" id="btnCancelModal">Отмена</button>
+      <button class="btn-primary" id="btnCreateProject">Создать</button>
     </div>
   </div>
 </div>
 
+<div class="ver">v2.0 · 28.06</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-// Supabase config
-const SUPABASE_URL = 'https://fciofuexujtxxjlamxno.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjaW9mdWV4dWp0eHhqbGFteG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNTYwOTcsImV4cCI6MjA5NTczMjA5N30.dDvtfabQ6xHmSd5NDntme2ggJpzNKLtXovFFDW2Kc80';
-let supabase = null;
-try{
-  if(window.supabase && window.supabase.createClient){
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  } else {
-    console.error('⚠️ Supabase CDN загрузился неправильно');
-  }
-}catch(e){
-  console.error('Supabase init error:', e);
-}
+(function(){
+  "use strict";
 
-const TEMPLATES = [
-  {id:'straight', name:'Прямая', icon:'📏', desc:'Однорядная кухня'},
-  {id:'l-shaped', name:'L-образная', icon:'⌐', desc:'Угловая кухня'},
-  {id:'u-shaped', name:'U-образная', icon:'⊔', desc:'П-образная кухня'},
-  {id:'wardrobe', name:'Гардероб', icon:'👔', desc:'Система шкафов'},
-];
-
-let selectedTemplate = 'straight';
-let projects = [];
-
-async function init(){
-  try{
-    renderTemplates();
-  }catch(e){ console.error('Template render error:', e); }
-
-  try{
-    await loadProjects();
-    renderProjects();
-  }catch(e){
-    console.error('Projects load error:', e);
-    renderProjects(); // boş da olsa render et
-  }
-  console.log('✅ Alfa 3D Planner loaded');
-}
-
-function renderTemplates(){
-  const grid = document.getElementById('templatesGrid');
-  grid.innerHTML = TEMPLATES.map(t => `
-    <div class="template-btn ${t.id === selectedTemplate ? 'selected' : ''}" 
-         onclick="selectTemplate('${t.id}')">
-      <span class="template-icon">${t.icon}</span>
-      <span>${t.name}</span>
-    </div>
-  `).join('');
-}
-
-function selectTemplate(id){
-  selectedTemplate = id;
-  renderTemplates();
-}
-
-async function loadProjects(){
-  if(!supabase){ projects = []; return; }
-  try{
-    const {data, error} = await supabase.from('alfa_3d_projects').select('*').order('created_at', {ascending:false});
-    if(error) throw error;
-    projects = data || [];
-  }catch(e){
-    console.error('Load error:', e);
-    projects = [];
-  }
-}
-
-function renderProjects(){
-  const container = document.getElementById('projectsContainer');
-  if(!container) return;
-
-  if(!projects || projects.length === 0){
-    container.innerHTML = `
-      <div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--gray)">
-        <p>📭 Проектов нет. Создайте новый!</p>
-      </div>
-    `;
-    return;
-  }
-
-  container.innerHTML = projects.map(p => `
-    <div class="project-card">
-      <div class="project-header">
-        <div class="project-name">${p.project_name || 'Без имени'}</div>
-        <div class="project-date">${p.created_at ? new Date(p.created_at).toLocaleDateString('ru-RU') : ''}</div>
-      </div>
-      <div class="project-customer">👤 ${p.customer_name || 'Нет имени'}</div>
-      <div class="project-stats">
-        <span>📦 ${(p.stats && p.stats.modules) || 0} модулей</span>
-        <span>🪵 ${(p.stats && p.stats.board) || 0}м²</span>
-      </div>
-      <div class="project-status ${p.status || 'draft'}">${getStatusText(p.status)}</div>
-      <div class="project-actions">
-        <button class="edit-btn" onclick="editProject('${p.id}')">Редактировать</button>
-        <button class="delete-btn" onclick="deleteProject('${p.id}')">🗑</button>
-      </div>
-    </div>
-  `).join('');
-}
-
-function getStatusText(status){
-  const map = {draft:'Черновик', sent:'Отправлено', approved:'✓ Одобрено', rejected:'✗ Отклонено'};
-  return map[status] || 'Черновик';
-}
-
-function openNewProjectModal(){
-  document.getElementById('newProjectModal').classList.add('open');
-}
-
-function closeModal(id){
-  document.getElementById(id).classList.remove('open');
-}
-
-async function createProject(){
-  const name = document.getElementById('projectName').value.trim();
-  const customer = document.getElementById('customerName').value.trim();
-  const phone = document.getElementById('customerPhone').value.trim();
-  const roomW = parseInt(document.getElementById('roomWidth').value) || 400;
-  const roomD = parseInt(document.getElementById('roomDepth').value) || 300;
-
-  if(!name || !customer){
-    alert('Заполните имя проекта и клиента');
-    return;
-  }
-
-  if(!supabase){
-    alert('Нет связи с базой данных. Обновите страницу.');
-    return;
-  }
-
-  const projectData = {
-    project_name: name,
-    customer_name: customer,
-    customer_phone: phone,
-    template: selectedTemplate,
-    room_width: roomW,
-    room_depth: roomD,
-    modules: [],
-    stats: {modules:0, board:0, facade:0, edge:0},
-    status: 'draft',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  };
-
-  try{
-    const {data, error} = await supabase.from('alfa_3d_projects').insert([projectData]).select();
-    if(error) throw error;
-    
-    closeModal('newProjectModal');
-    document.getElementById('projectName').value = '';
-    document.getElementById('customerName').value = '';
-    document.getElementById('customerPhone').value = '';
-    
-    // Автоматически открыть редактор
-    if(data && data[0]){
-      editProject(data[0].id);
-    } else {
-      await loadProjects();
-      renderProjects();
+  // ── Hata gösterici ──
+  function showError(msg){
+    var box = document.getElementById('errBox');
+    if(!box){
+      box = document.createElement('div');
+      box.id = 'errBox';
+      box.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#dc2626;color:#fff;padding:14px;z-index:99999;font-family:monospace;font-size:13px;white-space:pre-wrap;word-break:break-all';
+      document.body.appendChild(box);
     }
-  }catch(e){
-    console.error('Create error:', e);
-    alert('Ошибка при создании проекта: ' + (e.message || e));
+    box.textContent = '❌ ' + msg;
   }
-}
+  window.addEventListener('error', function(e){ showError(e.message + ' :' + e.lineno); });
 
-function editProject(projectId){
-  window.location.href = `editor.html?id=${projectId}`;
-}
+  // ── Config ──
+  var SUPABASE_URL = 'https://fciofuexujtxxjlamxno.supabase.co';
+  var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjaW9mdWV4dWp0eHhqbGFteG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNTYwOTcsImV4cCI6MjA5NTczMjA5N30.dDvtfabQ6xHmSd5NDntme2ggJpzNKLtXovFFDW2Kc80';
 
-async function deleteProject(projectId){
-  if(!confirm('Удалить проект?')) return;
-  
-  try{
-    const {error} = await supabase.from('alfa_3d_projects').delete().eq('id', projectId);
-    if(error) throw error;
-    
-    await loadProjects();
-    renderProjects();
-  }catch(e){
-    console.error('Delete error:', e);
-    alert('Ошибка при удалении');
+  var sb = null;
+  try {
+    if(window.supabase && window.supabase.createClient){
+      sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    }
+  } catch(e){ console.error(e); }
+
+  var TEMPLATES = [
+    {id:'straight', name:'Прямая', icon:'📏'},
+    {id:'l-shaped', name:'L-образная', icon:'⌐'},
+    {id:'u-shaped', name:'U-образная', icon:'⊔'},
+    {id:'wardrobe', name:'Гардероб', icon:'👔'}
+  ];
+  var selectedTemplate = 'straight';
+  var projects = [];
+
+  // ── Templates ──
+  function renderTemplates(){
+    var grid = document.getElementById('templatesGrid');
+    if(!grid) return;
+    grid.innerHTML = TEMPLATES.map(function(t){
+      return '<div class="template-btn' + (t.id===selectedTemplate?' selected':'') + '" data-tpl="'+t.id+'">' +
+        '<span class="template-icon">'+t.icon+'</span><span>'+t.name+'</span></div>';
+    }).join('');
+    // bağla
+    grid.querySelectorAll('.template-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        selectedTemplate = btn.getAttribute('data-tpl');
+        renderTemplates();
+      });
+    });
   }
-}
 
-function openSettings(){
-  alert('⚙️ Параметры (скоро)');
-}
+  // ── Projects ──
+  function statusText(s){
+    var m = {draft:'Черновик', sent:'Отправлено', approved:'✓ Одобрено', rejected:'✗ Отклонено'};
+    return m[s] || 'Черновик';
+  }
 
-function logout(){
-  alert('Выход (интегрировать с Baibesik auth)');
-}
+  function renderProjects(){
+    var grid = document.getElementById('projectsGrid');
+    if(!grid) return;
+    // new-project card'ı koru, sonrasını temizle
+    grid.querySelectorAll('.project-card, .empty-msg').forEach(function(el){ el.remove(); });
 
-// Init on load
-init();
+    if(!projects.length){
+      var empty = document.createElement('div');
+      empty.className = 'empty-msg';
+      empty.style.cssText = 'grid-column:1/-1;padding:40px;text-align:center;color:#64748b';
+      empty.textContent = '📭 Проектов нет. Создайте новый!';
+      grid.appendChild(empty);
+      return;
+    }
+
+    projects.forEach(function(p){
+      var card = document.createElement('div');
+      card.className = 'project-card';
+      var date = p.created_at ? new Date(p.created_at).toLocaleDateString('ru-RU') : '';
+      var modCount = (p.stats && p.stats.modules) || 0;
+      var board = (p.stats && p.stats.board) || 0;
+      card.innerHTML =
+        '<div class="project-header"><div class="project-name">'+(p.project_name||'Без имени')+'</div>'+
+        '<div class="project-date">'+date+'</div></div>'+
+        '<div class="project-customer">👤 '+(p.customer_name||'Нет имени')+'</div>'+
+        '<div class="project-stats"><span>📦 '+modCount+' модулей</span><span>🪵 '+board+'м²</span></div>'+
+        '<div class="project-status '+(p.status||'draft')+'">'+statusText(p.status)+'</div>'+
+        '<div class="project-actions">'+
+        '<button class="edit-btn">Редактировать</button>'+
+        '<button class="delete-btn">🗑</button></div>';
+      card.querySelector('.edit-btn').addEventListener('click', function(){
+        window.location.href = 'editor.html?id=' + p.id;
+      });
+      card.querySelector('.delete-btn').addEventListener('click', function(e){
+        e.stopPropagation();
+        deleteProject(p.id);
+      });
+      grid.appendChild(card);
+    });
+  }
+
+  function loadProjects(cb){
+    if(!sb){ projects = []; cb && cb(); return; }
+    sb.from('alfa_3d_projects').select('*').order('created_at', {ascending:false}).then(function(res){
+      if(res.error){ console.error(res.error); projects = []; }
+      else { projects = res.data || []; }
+      cb && cb();
+    });
+  }
+
+  function deleteProject(id){
+    if(!confirm('Удалить проект?')) return;
+    if(!sb) return;
+    sb.from('alfa_3d_projects').delete().eq('id', id).then(function(res){
+      if(res.error){ alert('Ошибка удаления'); console.error(res.error); }
+      else { loadProjects(renderProjects); }
+    });
+  }
+
+  // ── Modal ──
+  function openModal(){ document.getElementById('newProjectModal').classList.add('open'); }
+  function closeModal(){ document.getElementById('newProjectModal').classList.remove('open'); }
+
+  function createProject(){
+    var name = document.getElementById('projectName').value.trim();
+    var customer = document.getElementById('customerName').value.trim();
+    var phone = document.getElementById('customerPhone').value.trim();
+    var roomW = parseInt(document.getElementById('roomWidth').value) || 400;
+    var roomD = parseInt(document.getElementById('roomDepth').value) || 300;
+
+    if(!name || !customer){ alert('Заполните имя проекта и клиента'); return; }
+    if(!sb){ alert('Нет связи с базой. Обновите страницу.'); return; }
+
+    var row = {
+      project_name: name, customer_name: customer, customer_phone: phone,
+      template: selectedTemplate, room_width: roomW, room_depth: roomD,
+      modules: [], stats: {modules:0, board:0, facade:0, edge:0}, status: 'draft'
+    };
+
+    sb.from('alfa_3d_projects').insert([row]).select().then(function(res){
+      if(res.error){ alert('Ошибка: ' + res.error.message); console.error(res.error); return; }
+      closeModal();
+      document.getElementById('projectName').value = '';
+      document.getElementById('customerName').value = '';
+      document.getElementById('customerPhone').value = '';
+      if(res.data && res.data[0]){
+        window.location.href = 'editor.html?id=' + res.data[0].id;
+      } else {
+        loadProjects(renderProjects);
+      }
+    });
+  }
+
+  // ── Bağlantılar (DOM hazır olunca) ──
+  function bindAll(){
+    document.getElementById('btnNewProject').addEventListener('click', openModal);
+    document.getElementById('btnCancelModal').addEventListener('click', closeModal);
+    document.getElementById('btnCreateProject').addEventListener('click', createProject);
+    document.getElementById('btnManager').addEventListener('click', function(){
+      window.location.href = 'manager.html';
+    });
+    // modal dışına tıklayınca kapat
+    document.getElementById('newProjectModal').addEventListener('click', function(e){
+      if(e.target === this) closeModal();
+    });
+  }
+
+  // ── Init ──
+  function init(){
+    bindAll();
+    renderTemplates();
+    loadProjects(renderProjects);
+    if(!sb){ showError('Supabase yüklenemedi — обновите страницу'); }
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
 </script>
 
 </body>
