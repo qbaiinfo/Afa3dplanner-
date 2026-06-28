@@ -4,6 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Alfa 3D Planner — Проектирование мебели</title>
+<script>
+// GLOBAL HATA YAKALAYICI - ekranda gösterir
+window.addEventListener('error', function(e){
+  var box = document.getElementById('errBox') || (function(){
+    var d = document.createElement('div');
+    d.id = 'errBox';
+    d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#dc2626;color:#fff;padding:14px;z-index:99999;font-family:monospace;font-size:13px;white-space:pre-wrap;word-break:break-all';
+    document.body.appendChild(d);
+    return d;
+  })();
+  box.textContent = '❌ ОШИБКА: ' + e.message + '\nФайл: ' + (e.filename||'').split('/').pop() + ' :' + e.lineno;
+});
+</script>
 <style>
   :root{
     --orange:#f97316; --orange-dark:#ea580c; --dark:#0f172a; --dark2:#1e293b;
