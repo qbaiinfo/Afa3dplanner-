@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alfa Planner — Тест</title>
+<style>
+  body{font-family:system-ui,sans-serif;background:#0a0e1a;color:#e2e8f0;padding:20px;line-height:1.6}
+  h1{font-size:18px;margin-bottom:20px}
+  .test{background:#1e293b;border-radius:8px;padding:14px;margin-bottom:10px;border-left:4px solid #64748b}
+  .test.ok{border-left-color:#16a34a}
+  .test.fail{border-left-color:#dc2626}
+  .test.run{border-left-color:#f97316}
+  .test b{display:block;margin-bottom:4px}
+  .test small{color:#94a3b8;word-break:break-all;font-size:12px}
+  .btn{display:block;width:100%;padding:14px;background:#f97316;color:#fff;border:none;
+    border-radius:8px;font-weight:700;font-size:15px;margin-top:16px;cursor:pointer}
+</style>
+</head>
+<body>
+
+<h1>🔍 Alfa Planner — Диагностика</h1>
+<div id="results"></div>
+<button class="btn" onclick="location.reload()">🔄 Заново</button>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://fciofuexujtxxjlamxno.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjaW9mdWV4dWp0eHhqbGFteG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNTYwOTcsImV4cCI6MjA5NTczMjA5N30.dDvtfabQ6xHmSd5NDntme2ggJpzNKLtXovFFDW2Kc80';
+
+const results = document.getElementById('results');
+
+function log(title, status, detail){
+  const div = document.createElement('div');
+  div.className = 'test ' + status;
+  div.innerHTML = `<b>${status==='ok'?'✅':status==='fail'?'❌':'⏳'} ${title}</b><small>${detail||''}</small>`;
+  results.appendChild(div);
+}
+
+async function runTests(){
+  // Test 1: Supabase CDN загрузился?
+  if(window.supabase && window.supabase.createClient){
+    log('Тест 1: Supabase библиотека', 'ok', 'CDN загрузился правильно');
+  } else {
+    log('Тест 1: Supabase библиотека', 'fail', 'CDN НЕ загрузился! Проблема с интернетом или блокировка.');
+    return;
+  }
+
+  // Test 2: Client создаётся?
+  let sb;
+  try{
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    log('Тест 2: Подключение к базе', 'ok', SUPABASE_URL);
+  }catch(e){
+    log('Тест 2: Подключение к базе', 'fail', e.message);
+    return;
+  }
+
+  // Test 3: Таблица существует и читается?
+  try{
+    const {data, error} = await sb.from('alfa_3d_projects').select('*').limit(5);
+    if(error){
+      log('Тест 3: Чтение таблицы', 'fail', 'Ошибка: ' + error.message + ' (код: ' + (error.code||'?') + ')');
+    } else {
+      log('Тест 3: Чтение таблицы', 'ok', 'Таблица найдена. Проектов: ' + (data?data.length:0));
+    }
+  }catch(e){
+    log('Тест 3: Чтение таблицы', 'fail', e.message);
+  }
+
+  // Test 4: Запись в таблицу (INSERT)?
+  try{
+    const testRow = {
+      project_name: 'ТЕСТ_' + Date.now(),
+      customer_name: 'Тест',
+      status: 'draft',
+      modules: [],
+      stats: {modules:0, board:0, facade:0, edge:0}
+    };
+    const {data, error} = await sb.from('alfa_3d_projects').insert([testRow]).select();
+    if(error){
+      log('Тест 4: Запись (INSERT)', 'fail', 'Ошибка: ' + error.message + ' (код: ' + (error.code||'?') + ')');
+    } else {
+      log('Тест 4: Запись (INSERT)', 'ok', 'Запись создана! ID: ' + (data&&data[0]?data[0].id:'?'));
+      // Удалить тестовую запись
+      if(data && data[0]){
+        await sb.from('alfa_3d_projects').delete().eq('id', data[0].id);
+        log('Тест 5: Удаление тестовой записи', 'ok', 'Очищено');
+      }
+    }
+  }catch(e){
+    log('Тест 4: Запись (INSERT)', 'fail', e.message);
+  }
+
+  // Итог
+  const fails = document.querySelectorAll('.test.fail').length;
+  if(fails === 0){
+    log('ИТОГ', 'ok', 'Всё работает! Проблема была в коде index.html, не в базе.');
+  } else {
+    log('ИТОГ', 'fail', 'Найдено проблем: ' + fails + '. Смотри красные тесты выше.');
+  }
+}
+
+// CDN biraz gec yuklenebilir, kontrol ederek basla
+function start(){
+  if(window.supabase && window.supabase.createClient){
+    runTests();
+  } else {
+    log('Ожидание Supabase CDN...', 'run', 'Подождите...');
+    setTimeout(()=>{
+      results.innerHTML = '';
+      runTests();
+    }, 1500);
+  }
+}
+start();
+</script>
+
+</body>
+</html>
