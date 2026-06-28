@@ -4,6 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Alfa 3D Planner — Редактор</title>
+<script>
+window.addEventListener('error', function(e){
+  var box = document.getElementById('errBox');
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'errBox';
+    box.style.cssText = 'position:fixed;top:54px;left:0;right:0;background:#dc2626;color:#fff;padding:10px;z-index:99999;font-family:monospace;font-size:12px;white-space:pre-wrap;word-break:break-all';
+    document.body.appendChild(box);
+  }
+  box.textContent = '❌ ' + e.message + ' :' + e.lineno;
+});
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -124,26 +136,77 @@
     color:#fff;cursor:pointer;font-weight:700}
 
   @media(max-width:1024px){
-    .sidebar,.props{width:200px}
-    #canvas-wrap{left:200px;right:200px}
+    .sidebar,.props{width:220px}
+    #canvas-wrap{left:220px;right:0}
+    .infobar{left:220px;right:0}
+  }
+
+  /* ── MOBİL (telefon) ── */
+  .mobile-fab{display:none}
+  @media(max-width:768px){
+    /* Sol panel: alttan açılan çekmece */
+    .sidebar{
+      width:100%;left:0;right:0;top:auto;bottom:0;height:62vh;
+      transform:translateY(100%);transition:transform .3s;
+      border-right:none;border-top:2px solid var(--orange);
+      border-radius:16px 16px 0 0;z-index:300
+    }
+    .sidebar.open{transform:translateY(0)}
+    /* tutamak çubuğu */
+    .sidebar::before{content:'';position:sticky;top:0;display:block;width:40px;height:4px;
+      background:rgba(255,255,255,.3);border-radius:2px;margin:8px auto 0}
+
+    /* Canvas tüm ekran */
+    #canvas-wrap{left:0;right:0;bottom:90px;top:54px}
+    .infobar{left:0;right:0;bottom:0;height:56px;font-size:11px;padding:0 10px}
+    .info-stats{gap:10px}
+
+    /* Sağ panel (properties) tam genişlik alttan */
+    .props{width:100%;left:0;right:0;border-left:none;
+      border-top:2px solid var(--orange);border-radius:16px 16px 0 0;
+      top:auto;bottom:0;height:55vh;transform:translateY(100%);z-index:310}
+    .props.open{transform:translateY(0)}
+
+    /* Topbar butonları küçült */
+    .topbar{padding:0 8px}
+    .tb-btn{padding:7px 8px;font-size:11px}
+    .tb-btn span.lbl{display:none}  /* sadece ikon kalsın */
+
+    /* Yüzen "Модули" butonu */
+    .mobile-fab{display:flex;position:fixed;bottom:72px;left:50%;transform:translateX(-50%);
+      z-index:250;background:var(--orange);color:#fff;border:none;border-radius:24px;
+      padding:12px 24px;font-size:14px;font-weight:800;box-shadow:0 4px 16px rgba(249,115,22,.5);
+      align-items:center;gap:8px;cursor:pointer}
+    .mobile-fab:active{transform:translateX(-50%) scale(.96)}
+
+    /* Çekmece kapatma overlay */
+    .drawer-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:290}
+    .drawer-overlay.open{display:block}
+
+    /* modül grid mobilde 3 sütun, daha kompakt */
+    .module-grid{grid-template-columns:1fr 1fr 1fr;gap:6px;padding:4px 10px 14px}
   }
 </style>
 </head>
 <body>
 
+<!-- Mobil: çekmece açma butonu + overlay -->
+<button class="mobile-fab" id="mobileFab">📦 Модули</button>
+<div class="drawer-overlay" id="drawerOverlay"></div>
+
 <div class="topbar">
   <div class="topbar-left">
     <button class="back-btn" onclick="goBack()">← Назад</button>
     <div class="topbar-title" id="projectTitle">Проект</div>
-    <span style="font-size:9px;color:#334155;margin-left:6px">v2.1</span>
+    <span style="font-size:9px;color:#334155;margin-left:6px">v2.2</span>
   </div>
   <div class="topbar-actions">
-    <button class="tb-btn" onclick="undo()">↶ Отмена</button>
-    <button class="tb-btn" onclick="redo()">↷ Повтор</button>
-    <button class="tb-btn" onclick="openBOMModal()">📋 BOM</button>
-    <button class="tb-btn" onclick="exportPDF()">📄 PDF</button>
-    <button class="tb-btn" onclick="takeRender()">📸 Рендер</button>
-    <button class="tb-btn primary" onclick="saveProject()">💾 Сохранить</button>
+    <button class="tb-btn" onclick="undo()">↶<span class="lbl"> Отмена</span></button>
+    <button class="tb-btn" onclick="redo()">↷<span class="lbl"> Повтор</span></button>
+    <button class="tb-btn" onclick="openBOMModal()">📋<span class="lbl"> BOM</span></button>
+    <button class="tb-btn" onclick="exportPDF()">📄<span class="lbl"> PDF</span></button>
+    <button class="tb-btn" onclick="takeRender()">📸<span class="lbl"> Рендер</span></button>
+    <button class="tb-btn primary" onclick="saveProject()">💾<span class="lbl"> Сохранить</span></button>
   </div>
 </div>
 
@@ -384,6 +447,7 @@ let camTarget = new THREE.Vector3(0, 1, 0);
 
 async function init(){
   renderCatalog();  // sol menüyü oluştur (proje yüklenmese de görünsün)
+  setupMobileDrawer();  // mobil çekmece kontrolleri
 
   if(!projectId){
     alert('Проект не найден');
@@ -398,6 +462,26 @@ async function init(){
   initThree();
   renderProperties();
   console.log('✅ Editor loaded for project:', projectId);
+}
+
+function setupMobileDrawer(){
+  const fab = document.getElementById('mobileFab');
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('drawerOverlay');
+  if(!fab || !sidebar || !overlay) return;
+
+  function openDrawer(){ sidebar.classList.add('open'); overlay.classList.add('open'); }
+  function closeDrawer(){ sidebar.classList.remove('open'); overlay.classList.remove('open'); }
+
+  fab.addEventListener('click', openDrawer);
+  overlay.addEventListener('click', closeDrawer);
+
+  // modül seçilince çekmeceyi kapat (mobilde)
+  sidebar.addEventListener('click', function(e){
+    if(e.target.closest('.module-btn') && window.innerWidth <= 768){
+      setTimeout(closeDrawer, 150);
+    }
+  });
 }
 
 async function loadProject(){
