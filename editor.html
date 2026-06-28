@@ -154,7 +154,7 @@
   <div class="tb-left">
     <button class="tb-back" onclick="goBack()">←</button>
     <span class="tb-title" id="projTitle">Проект</span>
-    <span class="tb-ver">v4.7</span>
+    <span class="tb-ver">v4.8</span>
   </div>
   <div class="tb-actions">
     <button class="tb-btn" onclick="toggleList()" title="Список">📑</button>
@@ -209,7 +209,13 @@
   <button id="moveModeBtn" onclick="toggleMoveMode()" style="position:absolute;left:12px;top:12px;z-index:15;
     padding:10px 14px;border-radius:24px;border:none;background:var(--panel);color:var(--ink);
     font-size:13px;font-weight:800;box-shadow:var(--shadow);cursor:pointer;display:flex;align-items:center;gap:6px">
-    ✋ <span id="moveModeLbl">Поворот камеры</span>
+    🔄 <span id="moveModeLbl">Поворот камеры</span>
+  </button>
+  <!-- Usta modu toggle -->
+  <button id="proModeBtn" onclick="toggleProMode()" style="position:absolute;left:12px;top:58px;z-index:15;
+    padding:10px 14px;border-radius:24px;border:none;background:var(--panel);color:var(--ink);
+    font-size:13px;font-weight:800;box-shadow:var(--shadow);cursor:pointer;display:flex;align-items:center;gap:6px">
+    🔧 <span id="proModeLbl">Режим мастера</span>
   </button>
   <div class="empty-hint" id="emptyHint">
     <div class="big">🪑</div>
@@ -438,6 +444,46 @@ function toggleMoveMode(){
     lbl.textContent='Поворот камеры';
     btn.firstChild.textContent='🔄 ';
   }
+}
+
+// 🔧 Usta modu: ölçüler, iç şema görünür
+var proMode=false;
+function toggleProMode(){
+  proMode=!proMode;
+  var btn=document.getElementById('proModeBtn');
+  var lbl=document.getElementById('proModeLbl');
+  if(proMode){
+    btn.style.background='#1e293b'; btn.style.color='#fff';
+    lbl.textContent='Мастер ✓';
+  } else {
+    btn.style.background='var(--panel)'; btn.style.color='var(--ink)';
+    lbl.textContent='Режим мастера';
+  }
+  // tüm modülleri yeniden çiz (ölçüler/şema dahil)
+  modules.forEach(function(m){ if(m.mesh) scene.remove(m.mesh); buildMesh(m); });
+  layoutRow();
+  if(selected && selected._selBox) selected._selBox.material.opacity=0.5;
+}
+
+// 3D ölçü etiketi (sprite) oluştur
+function makeLabel(text){
+  var c=document.createElement('canvas'); c.width=128; c.height=40;
+  var x=c.getContext('2d');
+  x.fillStyle='rgba(30,41,59,0.92)';
+  roundRect(x,2,2,124,36,8); x.fill();
+  x.fillStyle='#fff'; x.font='bold 22px sans-serif'; x.textAlign='center'; x.textBaseline='middle';
+  x.fillText(text, 64, 21);
+  var tex=new THREE.CanvasTexture(c);
+  var spr=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false}));
+  spr.scale.set(0.32,0.1,1);
+  return spr;
+}
+function roundRect(x,bx,by,bw,bh,r){
+  x.beginPath();
+  x.moveTo(bx+r,by); x.lineTo(bx+bw-r,by); x.quadraticCurveTo(bx+bw,by,bx+bw,by+r);
+  x.lineTo(bx+bw,by+bh-r); x.quadraticCurveTo(bx+bw,by+bh,bx+bw-r,by+bh);
+  x.lineTo(bx+r,by+bh); x.quadraticCurveTo(bx,by+bh,bx,by+bh-r);
+  x.lineTo(bx,by+r); x.quadraticCurveTo(bx,by,bx+r,by); x.closePath();
 }
 
 function setupControls(el){
@@ -714,15 +760,14 @@ function buildMesh(mod){
   var faceMat;
   var finish=mod.finish||'mat';
   if(finish==='gloss'){
-    // parlak (глянец) - düşük roughness, yansıma
     faceMat=new THREE.MeshStandardMaterial({color:faceColor,roughness:0.12,metalness:0.15});
   } else if(finish==='wood'){
-    // ahşap doku
     faceMat=new THREE.MeshStandardMaterial({map:makeWoodTexture(faceColor),roughness:0.6,metalness:0.02});
   } else {
-    // mat (varsayılan)
     faceMat=new THREE.MeshStandardMaterial({color:faceColor,roughness:0.7,metalness:0.03});
   }
+  // usta modu: cepheler yarı saydam (iç raflar/parçalar görünsün)
+  if(proMode){ faceMat.transparent=true; faceMat.opacity=0.35; }
 
   // ── GÖVDE (carcass): 5 panel (alt, üst, sol, sağ, arka) ──
   function panel(pw,ph,pd,px,py,pz,mat){
@@ -787,6 +832,16 @@ function buildMesh(mod){
   }
   mod._faces=faces;
 
+  // ── USTA MODU: iç raflar (şema için, tüm dolaplarda) ──
+  if(proMode && mod.type.indexOf('draw')<0){
+    var nShelf = h>1.2 ? 3 : (h>0.6 ? 2 : 1);
+    var shMat=new THREE.MeshStandardMaterial({color:0xddd5c8,roughness:0.8,transparent:true,opacity:0.85});
+    for(var si=1;si<=nShelf;si++){
+      var sh=new THREE.Mesh(new THREE.BoxGeometry(w-2*t,t*0.8,d-0.05),shMat);
+      sh.position.set(0,-h/2+(h/(nShelf+1))*si,0); g.add(sh);
+    }
+  }
+
   // ── KADEME 4: penal/boy dolap içi (kapı gizliyse veya kargo seçiliyse görünür) ──
   var isTall = mod.type.indexOf('tall')===0 || mod.type.indexOf('wr')===0;
   if(isTall && (mod.hideFront || (mod.fCargo && mod.fCargo!=='shelf'))){
@@ -820,6 +875,22 @@ function buildMesh(mod){
   box.userData.selBox=true;
   g.add(box);
   mod._selBox=box;
+
+  // ── USTA MODU: ölçü etiketleri ──
+  if(proMode){
+    // genişlik (üstte)
+    var lblW=makeLabel(Math.round(w*1000)+''); lblW.position.set(0,h/2+0.12,d/2); g.add(lblW);
+    // yükseklik (yanda)
+    var lblH=makeLabel(Math.round(h*1000)+''); lblH.position.set(w/2+0.14,0,d/2); g.add(lblH);
+    // derinlik (köşe)
+    var lblD=makeLabel('гл '+Math.round(d*1000)); lblD.position.set(w/2+0.05,-h/2+0.05,0); g.add(lblD);
+    // şema kutusu - şeffaf tel çerçeve (parça hatları)
+    var wire=new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(w,h,d)),
+      new THREE.LineBasicMaterial({color:0x1e293b,transparent:true,opacity:0.5})
+    );
+    g.add(wire);
+  }
 
   g.position.set(mod.x, mod.h/2, mod.z);
   if(mod.rot) g.rotation.y=mod.rot;
