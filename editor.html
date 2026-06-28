@@ -200,7 +200,7 @@ window.addEventListener('error', function(e){
   <div class="topbar-left">
     <button class="back-btn" onclick="goBack()">← Назад</button>
     <div class="topbar-title" id="projectTitle">Проект</div>
-    <span style="font-size:9px;color:#334155;margin-left:6px">v2.3</span>
+    <span style="font-size:9px;color:#334155;margin-left:6px">v2.4</span>
   </div>
   <div class="topbar-actions">
     <button class="tb-btn" onclick="undo()">↶<span class="lbl"> Отмена</span></button>
@@ -504,13 +504,18 @@ async function loadProject(){
 }
 
 function initThree(){
+  if(scene) return;  // zaten kuruldu, tekrar kurma
+  if(typeof THREE === 'undefined'){ console.error('THREE yüklenmedi'); return; }
   const wrap = document.getElementById('canvas-wrap');
+  if(!wrap) return;
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a0e1a);
   
-  camera = new THREE.PerspectiveCamera(75, wrap.clientWidth/wrap.clientHeight, 0.1, 1000);
+  const cw = wrap.clientWidth || window.innerWidth;
+  const ch = wrap.clientHeight || (window.innerHeight - 144);
+  camera = new THREE.PerspectiveCamera(75, cw/ch, 0.1, 1000);
   renderer = new THREE.WebGLRenderer({antialias:true});
-  renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+  renderer.setSize(cw, ch);
   renderer.shadowMap.enabled = true;
   wrap.appendChild(renderer.domElement);
 
@@ -532,9 +537,12 @@ function initThree(){
   animate();
 
   window.addEventListener('resize', () => {
-    camera.aspect = wrap.clientWidth/wrap.clientHeight;
+    if(!camera || !renderer || !wrap) return;
+    const w = wrap.clientWidth || window.innerWidth;
+    const h = wrap.clientHeight || window.innerHeight;
+    camera.aspect = w/h;
     camera.updateProjectionMatrix();
-    renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+    renderer.setSize(w, h);
   });
 }
 
@@ -617,9 +625,15 @@ function addModule(type){
   };
 
   modules.push(module);
-  addToHistory();
-  renderScene();
-  updateStats();
+
+  // Three.js sahnesi hazır değilse şimdi kur (garanti)
+  if(!scene){
+    try { initThree(); } catch(e){ console.error('initThree (addModule):', e); }
+  }
+
+  try { addToHistory(); } catch(e){ console.error(e); }
+  try { renderScene(); } catch(e){ console.error('renderScene:', e); }
+  try { updateStats(); } catch(e){ console.error(e); }
 }
 
 function renderScene(){
@@ -757,7 +771,7 @@ function goBack(){
 
 function animate(){
   requestAnimationFrame(animate);
-  renderer.render(scene, camera);
+  if(renderer && scene && camera) renderer.render(scene, camera);
 }
 
 // Init - DOM hazır olunca
