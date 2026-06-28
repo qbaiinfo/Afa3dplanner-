@@ -123,6 +123,7 @@
       <div class="big-icon">➕</div>
       <p>Новый проект</p>
     </div>
+    <div id="projectsContainer" style="display:contents"></div>
   </div>
 </div>
 
@@ -170,10 +171,19 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-// Supabase config (replace with your values)
+// Supabase config
 const SUPABASE_URL = 'https://fciofuexujtxxjlamxno.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjaW9mdWV4dWp0eHhqbGFteG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNTYwOTcsImV4cCI6MjA5NTczMjA5N30.dDvtfabQ6xHmSd5NDntme2ggJpzNKLtXovFFDW2Kc80';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let supabase = null;
+try{
+  if(window.supabase && window.supabase.createClient){
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  } else {
+    console.error('⚠️ Supabase CDN загрузился неправильно');
+  }
+}catch(e){
+  console.error('Supabase init error:', e);
+}
 
 const TEMPLATES = [
   {id:'straight', name:'Прямая', icon:'📏', desc:'Однорядная кухня'},
@@ -186,9 +196,17 @@ let selectedTemplate = 'straight';
 let projects = [];
 
 async function init(){
-  renderTemplates();
-  await loadProjects();
-  renderProjects();
+  try{
+    renderTemplates();
+  }catch(e){ console.error('Template render error:', e); }
+
+  try{
+    await loadProjects();
+    renderProjects();
+  }catch(e){
+    console.error('Projects load error:', e);
+    renderProjects(); // boş da olsa render et
+  }
   console.log('✅ Alfa 3D Planner loaded');
 }
 
@@ -209,6 +227,7 @@ function selectTemplate(id){
 }
 
 async function loadProjects(){
+  if(!supabase){ projects = []; return; }
   try{
     const {data, error} = await supabase.from('alfa_3d_projects').select('*').order('created_at', {ascending:false});
     if(error) throw error;
@@ -220,11 +239,11 @@ async function loadProjects(){
 }
 
 function renderProjects(){
-  const grid = document.getElementById('projectsGrid');
-  const newCard = grid.innerHTML.split('</div>')[0] + '</div>';
-  
-  if(projects.length === 0){
-    grid.innerHTML = newCard + `
+  const container = document.getElementById('projectsContainer');
+  if(!container) return;
+
+  if(!projects || projects.length === 0){
+    container.innerHTML = `
       <div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--gray)">
         <p>📭 Проектов нет. Создайте новый!</p>
       </div>
@@ -232,16 +251,16 @@ function renderProjects(){
     return;
   }
 
-  grid.innerHTML = newCard + projects.map(p => `
+  container.innerHTML = projects.map(p => `
     <div class="project-card">
       <div class="project-header">
-        <div class="project-name">${p.project_name}</div>
-        <div class="project-date">${new Date(p.created_at).toLocaleDateString('ru-RU')}</div>
+        <div class="project-name">${p.project_name || 'Без имени'}</div>
+        <div class="project-date">${p.created_at ? new Date(p.created_at).toLocaleDateString('ru-RU') : ''}</div>
       </div>
       <div class="project-customer">👤 ${p.customer_name || 'Нет имени'}</div>
       <div class="project-stats">
-        <span>📦 ${p.stats?.modules || 0} модулей</span>
-        <span>🪵 ${p.stats?.board || 0}м²</span>
+        <span>📦 ${(p.stats && p.stats.modules) || 0} модулей</span>
+        <span>🪵 ${(p.stats && p.stats.board) || 0}м²</span>
       </div>
       <div class="project-status ${p.status || 'draft'}">${getStatusText(p.status)}</div>
       <div class="project-actions">
@@ -277,6 +296,11 @@ async function createProject(){
     return;
   }
 
+  if(!supabase){
+    alert('Нет связи с базой данных. Обновите страницу.');
+    return;
+  }
+
   const projectData = {
     project_name: name,
     customer_name: customer,
@@ -292,7 +316,7 @@ async function createProject(){
   };
 
   try{
-    const {data, error} = await supabase.from('alfa_3d_projects').insert([projectData]);
+    const {data, error} = await supabase.from('alfa_3d_projects').insert([projectData]).select();
     if(error) throw error;
     
     closeModal('newProjectModal');
@@ -300,14 +324,16 @@ async function createProject(){
     document.getElementById('customerName').value = '';
     document.getElementById('customerPhone').value = '';
     
-    await loadProjects();
-    renderProjects();
-    
     // Автоматически открыть редактор
-    if(data && data[0]) editProject(data[0].id);
+    if(data && data[0]){
+      editProject(data[0].id);
+    } else {
+      await loadProjects();
+      renderProjects();
+    }
   }catch(e){
     console.error('Create error:', e);
-    alert('Ошибка при создании проекта');
+    alert('Ошибка при создании проекта: ' + (e.message || e));
   }
 }
 
