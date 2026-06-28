@@ -154,10 +154,12 @@
   <div class="tb-left">
     <button class="tb-back" onclick="goBack()">←</button>
     <span class="tb-title" id="projTitle">Проект</span>
-    <span class="tb-ver">v4.1</span>
+    <span class="tb-ver">v4.3</span>
   </div>
   <div class="tb-actions">
     <button class="tb-btn" onclick="toggleList()" title="Список">📑</button>
+    <button class="tb-btn" onclick="toggle2D()" title="Чертёж 2D" id="btn2D">📐</button>
+    <button class="tb-btn" onclick="showDetailing()" title="Деталировка">📋</button>
     <button class="tb-btn" onclick="undo()" title="Отмена">↶</button>
     <button class="tb-btn" onclick="doRender()" title="Скриншот">📸</button>
     <button class="tb-btn primary" onclick="saveProject()" title="Сохранить">💾<span class="lbl">Сохранить</span></button>
@@ -217,6 +219,32 @@
 </div>
 
 <div id="dbg">init...</div>
+
+<!-- 2D Çizim katmanı -->
+<div id="draw2d" style="display:none;position:fixed;top:56px;left:0;right:0;bottom:48px;background:#fff;z-index:70;overflow:auto">
+  <div style="position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);padding:10px 16px;display:flex;gap:8px;align-items:center;z-index:2">
+    <strong style="font-size:13px;color:var(--ink)">📐 Чертёж</strong>
+    <button onclick="set2DView('top')" id="d2top" style="padding:7px 12px;border-radius:8px;border:1px solid var(--orange);background:#fff7ed;font-size:12px;font-weight:700;cursor:pointer">Сверху</button>
+    <button onclick="set2DView('front')" id="d2front" style="padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-size:12px;font-weight:700;cursor:pointer">Спереди</button>
+    <button onclick="downloadDrawing()" style="padding:7px 12px;border-radius:8px;border:none;background:var(--orange);color:#fff;font-size:12px;font-weight:700;cursor:pointer;margin-left:auto">📥 PNG</button>
+  </div>
+  <canvas id="drawCanvas" style="display:block;margin:0 auto;background:#fff"></canvas>
+</div>
+
+<!-- Detaylandırma modal -->
+<div id="detModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:400;padding:20px;overflow:auto">
+  <div style="background:#fff;max-width:800px;margin:0 auto;border-radius:14px;padding:20px;box-shadow:var(--shadow-lg)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h2 style="font-size:16px;font-weight:800;color:var(--ink)">📋 Деталировка (спецификация распила)</h2>
+      <button onclick="closeDetailing()" style="background:var(--bg);border:none;width:32px;height:32px;border-radius:50%;font-size:18px;cursor:pointer">×</button>
+    </div>
+    <div id="detContent"></div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button onclick="downloadDetailingCSV()" style="flex:1;padding:12px;border:none;border-radius:10px;background:var(--green);color:#fff;font-weight:700;cursor:pointer">📥 Скачать CSV (Excel)</button>
+      <button onclick="closeDetailing()" style="padding:12px 20px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);font-weight:700;cursor:pointer">Закрыть</button>
+    </div>
+  </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -325,13 +353,24 @@ function initThree(){
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
   renderer.setSize(W,H);
   renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;  // yumuşak gölge
   wrap.appendChild(renderer.domElement);
 
-  scene.add(new THREE.AmbientLight(0xffffff,0.8));
-  var dl=new THREE.DirectionalLight(0xffffff,0.7);
-  dl.position.set(4,8,5); dl.castShadow=true; scene.add(dl);
-  var dl2=new THREE.DirectionalLight(0xffffff,0.25);
-  dl2.position.set(-5,3,-4); scene.add(dl2);
+  // gökyüzü/zemin ortam ışığı (daha doğal)
+  scene.add(new THREE.HemisphereLight(0xffffff,0xe2e8f0,0.6));
+  scene.add(new THREE.AmbientLight(0xffffff,0.45));
+  // ana ışık (gölge veren)
+  var dl=new THREE.DirectionalLight(0xffffff,0.85);
+  dl.position.set(4,9,6); dl.castShadow=true;
+  dl.shadow.mapSize.width=2048; dl.shadow.mapSize.height=2048;
+  dl.shadow.camera.near=0.5; dl.shadow.camera.far=30;
+  dl.shadow.camera.left=-8; dl.shadow.camera.right=8;
+  dl.shadow.camera.top=8; dl.shadow.camera.bottom=-8;
+  dl.shadow.bias=-0.0005;
+  scene.add(dl);
+  // dolgu ışığı (gölgeleri yumuşat)
+  var dl2=new THREE.DirectionalLight(0xffffff,0.3);
+  dl2.position.set(-5,4,-4); scene.add(dl2);
 
   // oda (zemin + duvarlar) - dinamik
   buildRoom();
@@ -553,6 +592,33 @@ function texFrom(canvas,rx,ry){
   return t;
 }
 
+// cephe için ahşap doku (renk tonuna göre)
+function makeWoodTexture(hexColor){
+  var c=document.createElement('canvas'); c.width=256; c.height=256;
+  var x=c.getContext('2d');
+  // taban renk
+  x.fillStyle=hexColor||'#c8915a'; x.fillRect(0,0,256,256);
+  // ahşap damarları (dikey, hafif)
+  var rgb=hexToRgb(hexColor||'#c8915a');
+  for(var i=0;i<40;i++){
+    var gx=Math.random()*256;
+    var dark=Math.random()*0.18;
+    x.strokeStyle='rgba('+Math.floor(rgb.r*(1-dark))+','+Math.floor(rgb.g*(1-dark))+','+Math.floor(rgb.b*(1-dark))+',0.4)';
+    x.lineWidth=0.5+Math.random()*1.5;
+    x.beginPath();
+    x.moveTo(gx,0);
+    // hafif dalgalı çizgi
+    for(var y=0;y<=256;y+=16){ x.lineTo(gx+Math.sin(y*0.05+i)*3, y); }
+    x.stroke();
+  }
+  return texFrom(c,1,2);
+}
+function hexToRgb(hex){
+  hex=hex.replace('#','');
+  if(hex.length===3) hex=hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+  return {r:parseInt(hex.substr(0,2),16),g:parseInt(hex.substr(2,2),16),b:parseInt(hex.substr(4,2),16)};
+}
+
 function buildRoom(){
   if(roomGroup){ scene.remove(roomGroup); }
   roomGroup=new THREE.Group();
@@ -606,7 +672,20 @@ function buildMesh(mod){
   var t=0.018;                                    // panel kalınlığı 18mm
 
   var bodyMat=new THREE.MeshStandardMaterial({color:bodyColor,roughness:0.75});
-  var faceMat=new THREE.MeshStandardMaterial({color:faceColor,roughness:0.55,metalness:0.04});
+
+  // ── YÜZEY TİPİ (finish) ──
+  var faceMat;
+  var finish=mod.finish||'mat';
+  if(finish==='gloss'){
+    // parlak (глянец) - düşük roughness, yansıma
+    faceMat=new THREE.MeshStandardMaterial({color:faceColor,roughness:0.12,metalness:0.15});
+  } else if(finish==='wood'){
+    // ahşap doku
+    faceMat=new THREE.MeshStandardMaterial({map:makeWoodTexture(faceColor),roughness:0.6,metalness:0.02});
+  } else {
+    // mat (varsayılan)
+    faceMat=new THREE.MeshStandardMaterial({color:faceColor,roughness:0.7,metalness:0.03});
+  }
 
   // ── GÖVDE (carcass): 5 panel (alt, üst, sol, sağ, arka) ──
   function panel(pw,ph,pd,px,py,pz,mat){
@@ -932,6 +1011,9 @@ function renderProps(){
     '<div class="prop-row"><label>Цвет фасада</label><div class="color-grid">'+
       COLORS.map(function(c){ return '<div class="csw'+(c.hex===m.color?' active':'')+'" style="background:'+c.hex+'" onclick="setColor(\''+c.hex+'\')"></div>'; }).join('')+
     '</div></div>'+
+    '<div class="prop-row"><label>Поверхность</label><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">'+
+      [{id:'mat',name:'Мат'},{id:'gloss',name:'Глянец'},{id:'wood',name:'Дерево'}].map(function(f){ return '<button onclick="setFinish(\''+f.id+'\')" style="padding:8px 4px;border-radius:8px;border:1px solid '+((m.finish||'mat')===f.id?'var(--orange)':'var(--line)')+';background:'+((m.finish||'mat')===f.id?'#fff7ed':'var(--panel2)')+';font-size:10px;font-weight:700;color:var(--ink);cursor:pointer">'+f.name+'</button>'; }).join('')+
+    '</div></div>'+
     '<div class="prop-row"><label>Ручка</label><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">'+
       handles.map(function(h){ return '<button onclick="setHandle(\''+h.id+'\')" style="padding:8px 4px;border-radius:8px;border:1px solid '+((m.handle||'skoba')===h.id?'var(--orange)':'var(--line)')+';background:'+((m.handle||'skoba')===h.id?'#fff7ed':'var(--panel2)')+';font-size:10px;font-weight:700;color:var(--ink);cursor:pointer">'+h.name+'</button>'; }).join('')+
     '</div></div>';
@@ -1034,6 +1116,11 @@ function setColor(hex){
   layoutRow();
   renderProps();
 }
+function setFinish(f){
+  if(!selected) return;
+  selected.finish=f;
+  rebuildSelected();
+}
 
 function openProps(){
   document.getElementById('props').classList.add('open');
@@ -1088,7 +1175,7 @@ function selectFromList(i){
 // ════════ HISTORY ════════
 function snapshot(){
   return modules.map(function(m){ return {id:m.id,type:m.type,name:m.name,w:m.w,h:m.h,d:m.d,x:m.x,z:m.z,color:m.color,handle:m.handle,hideFront:m.hideFront,rot:m.rot,_manual:m._manual,
-    fRail:m.fRail,drawers:m.drawers,fHinge:m.fHinge,fLift:m.fLift,fCargo:m.fCargo}; });
+    fRail:m.fRail,drawers:m.drawers,fHinge:m.fHinge,fLift:m.fLift,fCargo:m.fCargo,finish:m.finish}; });
 }
 function pushHist(){ hist=hist.slice(0,histIdx+1); hist.push(snapshot()); histIdx++; }
 function undo(){
@@ -1128,6 +1215,156 @@ function doRender(){
   a.download='alfa-'+(project?project.project_name:'proekt')+'.png'; a.click();
   if(selected) selectModule(selected);
 }
+
+// ════════ KADEME 5: 2D ÇİZİM ════════
+var draw2DMode='top';
+function toggle2D(){
+  var d=document.getElementById('draw2d');
+  var on=d.style.display==='none';
+  d.style.display=on?'block':'none';
+  document.getElementById('btn2D').style.background=on?'#fff7ed':'var(--bg)';
+  if(on) renderDrawing();
+}
+function set2DView(v){
+  draw2DMode=v;
+  var top=document.getElementById('d2top'), front=document.getElementById('d2front');
+  if(top){ top.style.border='1px solid '+(v==='top'?'var(--orange)':'var(--line)'); top.style.background=v==='top'?'#fff7ed':'var(--panel2)'; }
+  if(front){ front.style.border='1px solid '+(v==='front'?'var(--orange)':'var(--line)'); front.style.background=v==='front'?'#fff7ed':'var(--panel2)'; }
+  renderDrawing();
+}
+function renderDrawing(){
+  var cv=document.getElementById('drawCanvas');
+  if(!cv) return;
+  var W=Math.min(window.innerWidth-20, 900), H=window.innerHeight-180;
+  cv.width=W; cv.height=H;
+  var x=cv.getContext('2d');
+  x.fillStyle='#fff'; x.fillRect(0,0,W,H);
+  if(!modules.length){ x.fillStyle='#94a3b8'; x.font='14px sans-serif'; x.textAlign='center'; x.fillText('Нет модулей', W/2, H/2); return; }
+
+  // sınırları hesapla (metre)
+  var minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+  modules.forEach(function(m){
+    var hw=m.w/2, dim2=(draw2DMode==='top'?m.d/2:m.h/2);
+    var cx=m.x, cy=(draw2DMode==='top'?m.z:m.h/2);
+    minX=Math.min(minX,cx-hw); maxX=Math.max(maxX,cx+hw);
+    minY=Math.min(minY,cy-dim2); maxY=Math.max(maxY,cy+dim2);
+  });
+  var spanX=Math.max(maxX-minX,0.5), spanY=Math.max(maxY-minY,0.5);
+  var pad=70;
+  var scale=Math.min((W-2*pad)/spanX, (H-2*pad)/spanY);
+  function px(mx){ return pad+(mx-minX)*scale; }
+  function py(my){ return draw2DMode==='top' ? pad+(my-minY)*scale : H-pad-(my-minY)*scale; }
+
+  // modülleri çiz
+  modules.forEach(function(m){
+    var hw=m.w/2, dim2=(draw2DMode==='top'?m.d/2:m.h/2);
+    var cx=m.x, cy=(draw2DMode==='top'?m.z:m.h/2);
+    var x1=px(cx-hw), y1=py(cy+dim2), x2=px(cx+hw), y2=py(cy-dim2);
+    x.fillStyle=m.color||'#c8915a'; x.globalAlpha=0.25; x.fillRect(x1,y1,x2-x1,y2-y1); x.globalAlpha=1;
+    x.strokeStyle='#1e293b'; x.lineWidth=1.5; x.strokeRect(x1,y1,x2-x1,y2-y1);
+    // isim + genişlik
+    x.fillStyle='#1e293b'; x.font='bold 10px sans-serif'; x.textAlign='center';
+    x.fillText(Math.round(m.w*1000), (x1+x2)/2, Math.min(y1,y2)-4);
+    x.font='9px sans-serif'; x.fillStyle='#64748b';
+    x.fillText(m.name, (x1+x2)/2, (y1+y2)/2);
+  });
+
+  // toplam ölçü çizgisi (alt)
+  var totLeft=px(minX), totRight=px(maxX), lineY=H-pad+30;
+  x.strokeStyle='#f97316'; x.lineWidth=1;
+  x.beginPath(); x.moveTo(totLeft,lineY); x.lineTo(totRight,lineY); x.stroke();
+  // oklar
+  [totLeft,totRight].forEach(function(xx){ x.beginPath(); x.moveTo(xx,lineY-4); x.lineTo(xx,lineY+4); x.stroke(); });
+  x.fillStyle='#f97316'; x.font='bold 12px sans-serif'; x.textAlign='center';
+  x.fillText(Math.round(spanX*1000)+' мм', (totLeft+totRight)/2, lineY-6);
+
+  // başlık
+  x.fillStyle='#1e293b'; x.font='bold 13px sans-serif'; x.textAlign='left';
+  x.fillText(draw2DMode==='top'?'Вид сверху':'Вид спереди', 16, 24);
+}
+function downloadDrawing(){
+  var cv=document.getElementById('drawCanvas');
+  var a=document.createElement('a'); a.href=cv.toDataURL('image/png');
+  a.download='chertyozh-'+(project?project.project_name:'proekt')+'.png'; a.click();
+}
+
+// ════════ KADEME 5: ДЕТАЛИРОВКА (kesim listesi) ════════
+function computeDetailing(){
+  // her modül için parça listesi (mm)
+  var t=18; // panel kalınlığı mm
+  var parts=[];
+  modules.forEach(function(m,idx){
+    var W=Math.round(m.w*1000), H=Math.round(m.h*1000), D=Math.round(m.d*1000);
+    var tag='М'+(idx+1)+' '+m.name;
+    // gövde: 2 yan, alt, üst, arka
+    parts.push({mod:tag,part:'Бок',w:D,h:H,qty:2,edge:'2 длинные'});
+    parts.push({mod:tag,part:'Дно/Крыша',w:W-2*t,h:D,qty:2,edge:'1 длинная'});
+    parts.push({mod:tag,part:'Задняя стенка (ХДФ)',w:W-2*t,h:H-2*t,qty:1,edge:'нет'});
+    // cephe
+    if(!m.hideFront){
+      if(m.type.indexOf('draw')>=0){
+        var n=m.drawers||3, fh=Math.round((H-10)/n);
+        parts.push({mod:tag,part:'Фасад ящика',w:W-4,h:fh,qty:n,edge:'4 стороны'});
+      } else if(m.w>0.55 && m.type.indexOf('open')<0){
+        parts.push({mod:tag,part:'Фасад (дверь)',w:Math.round(W/2)-4,h:H-4,qty:2,edge:'4 стороны'});
+      } else if(m.type.indexOf('open')<0){
+        parts.push({mod:tag,part:'Фасад (дверь)',w:W-4,h:H-4,qty:1,edge:'4 стороны'});
+      }
+    }
+    // raflar (penal)
+    if(m.type.indexOf('tall')===0||m.type.indexOf('wr')===0){
+      parts.push({mod:tag,part:'Полка',w:W-2*t,h:D-20,qty:3,edge:'1 длинная'});
+    }
+  });
+  return parts;
+}
+function showDetailing(){
+  var parts=computeDetailing();
+  var totalArea=0, totalEdge=0;
+  parts.forEach(function(p){
+    totalArea += (p.w*p.h*p.qty)/1e6; // m²
+    if(p.edge.indexOf('4')>=0) totalEdge += ((p.w+p.h)*2*p.qty)/1000;
+    else if(p.edge.indexOf('2')>=0) totalEdge += (p.h*2*p.qty)/1000;
+    else if(p.edge.indexOf('1')>=0) totalEdge += (p.w*p.qty)/1000;
+  });
+  var html='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+
+    '<thead><tr style="background:var(--bg)">'+
+    '<th style="text-align:left;padding:8px;border-bottom:2px solid var(--line)">Модуль</th>'+
+    '<th style="text-align:left;padding:8px;border-bottom:2px solid var(--line)">Деталь</th>'+
+    '<th style="text-align:right;padding:8px;border-bottom:2px solid var(--line)">Ш (мм)</th>'+
+    '<th style="text-align:right;padding:8px;border-bottom:2px solid var(--line)">В (мм)</th>'+
+    '<th style="text-align:center;padding:8px;border-bottom:2px solid var(--line)">Кол</th>'+
+    '<th style="text-align:left;padding:8px;border-bottom:2px solid var(--line)">Кромка</th>'+
+    '</tr></thead><tbody>';
+  parts.forEach(function(p){
+    html+='<tr>'+
+      '<td style="padding:7px 8px;border-bottom:1px solid var(--line);color:var(--gray2)">'+p.mod+'</td>'+
+      '<td style="padding:7px 8px;border-bottom:1px solid var(--line);font-weight:600">'+p.part+'</td>'+
+      '<td style="padding:7px 8px;border-bottom:1px solid var(--line);text-align:right">'+p.w+'</td>'+
+      '<td style="padding:7px 8px;border-bottom:1px solid var(--line);text-align:right">'+p.h+'</td>'+
+      '<td style="padding:7px 8px;border-bottom:1px solid var(--line);text-align:center">'+p.qty+'</td>'+
+      '<td style="padding:7px 8px;border-bottom:1px solid var(--line);font-size:11px;color:var(--gray2)">'+p.edge+'</td>'+
+    '</tr>';
+  });
+  html+='</tbody></table></div>';
+  html+='<div style="margin-top:14px;padding:14px;background:var(--bg);border-radius:10px;display:flex;gap:24px;flex-wrap:wrap">'+
+    '<div><span style="color:var(--gray2);font-size:12px">Всего деталей:</span> <b style="color:var(--orange)">'+parts.reduce(function(a,p){return a+p.qty;},0)+'</b></div>'+
+    '<div><span style="color:var(--gray2);font-size:12px">ЛДСП:</span> <b style="color:var(--orange)">'+totalArea.toFixed(2)+' м²</b></div>'+
+    '<div><span style="color:var(--gray2);font-size:12px">Кромка:</span> <b style="color:var(--orange)">'+totalEdge.toFixed(1)+' м</b></div>'+
+  '</div>';
+  document.getElementById('detContent').innerHTML=html;
+  document.getElementById('detModal').style.display='block';
+}
+function closeDetailing(){ document.getElementById('detModal').style.display='none'; }
+function downloadDetailingCSV(){
+  var parts=computeDetailing();
+  var csv='Модуль,Деталь,Ширина(мм),Высота(мм),Кол-во,Кромка\n';
+  parts.forEach(function(p){ csv+='"'+p.mod+'","'+p.part+'",'+p.w+','+p.h+','+p.qty+',"'+p.edge+'"\n'; });
+  var a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent('\ufeff'+csv);
+  a.download='detalirovka-'+(project?project.project_name:'proekt')+'.csv'; a.click();
+}
+
 
 function goBack(){ location.href='index.html'; }
 
