@@ -154,7 +154,7 @@
   <div class="tb-left">
     <button class="tb-back" onclick="goBack()">←</button>
     <span class="tb-title" id="projTitle">Проект</span>
-    <span class="tb-ver">v4.3</span>
+    <span class="tb-ver">v4.5</span>
   </div>
   <div class="tb-actions">
     <button class="tb-btn" onclick="toggleList()" title="Список">📑</button>
@@ -443,18 +443,21 @@ function setupControls(el){
 
   el.addEventListener('mousedown',function(e){
     var hit=modAt(e.clientX,e.clientY);
-    if(e.button===0 && hit && hit===selected){ mode='drag'; dragMod=hit; }
+    if(e.button===0 && hit){ mode='drag'; dragMod=hit; selectModule(hit); }
     else { mode=(e.button===2?'pan':'rot'); }
     lx=e.clientX; ly=e.clientY;
   });
-  window.addEventListener('mouseup',function(){ mode=null; dragMod=null; });
+  window.addEventListener('mouseup',function(){
+    if(mode==='drag'&&dragMod){ snapModule(dragMod); applyModPos(dragMod); if(typeof buildCountertop==='function') buildCountertop(); pushHist(); }
+    mode=null; dragMod=null;
+  });
   el.addEventListener('mousemove',function(e){
     if(!mode) return;
     if(mode==='drag'&&dragMod){
       var g=screenToGround(e.clientX,e.clientY);
       if(g){ dragMod.x=g.x; dragMod.z=g.z; dragMod._manual=true;
-        var y=(dragMod.type.indexOf('wall')===0?1.45+dragMod.h/2:dragMod.h/2);
-        if(dragMod.mesh) dragMod.mesh.position.set(g.x,y,g.z); buildCountertop(); }
+        applyModPos(dragMod);
+        if(typeof buildCountertop==='function') buildCountertop(); }
       return;
     }
     var dx=e.clientX-lx, dy=e.clientY-ly; lx=e.clientX; ly=e.clientY;
@@ -473,8 +476,8 @@ function setupControls(el){
     if(e.touches.length===1){
       lx=e.touches[0].clientX; ly=e.touches[0].clientY;
       var hit=modAt(lx,ly);
-      // seçili modüle basılı tutarsan sürükle
-      if(hit && hit===selected){ mode='drag'; dragMod=hit; }
+      // modüle dokunursan taşı (seç + sürükle), boşlukta kamera döndür
+      if(hit){ mode='drag'; dragMod=hit; if(hit!==selected) selectModule(hit); }
       else { mode='rot'; }
     } else if(e.touches.length===2){ mode='pinch'; pdist=tdist(e); }
   },{passive:false});
@@ -483,8 +486,8 @@ function setupControls(el){
     if(mode==='drag'&&dragMod&&e.touches.length===1){
       var g=screenToGround(e.touches[0].clientX,e.touches[0].clientY);
       if(g){ dragMod.x=g.x; dragMod.z=g.z; dragMod._manual=true;
-        var y=(dragMod.type.indexOf('wall')===0?1.45+dragMod.h/2:dragMod.h/2);
-        if(dragMod.mesh) dragMod.mesh.position.set(g.x,y,g.z); buildCountertop(); }
+        applyModPos(dragMod);
+        if(typeof buildCountertop==='function') buildCountertop(); }
     } else if(mode==='rot'&&e.touches.length===1){
       var dx=e.touches[0].clientX-lx, dy=e.touches[0].clientY-ly; lx=e.touches[0].clientX; ly=e.touches[0].clientY;
       camA.theta-=dx*0.01; camA.phi=Math.max(0.1,Math.min(Math.PI/2-0.02,camA.phi-dy*0.01)); updateCam();
@@ -497,7 +500,7 @@ function setupControls(el){
       var h=modAt(e.changedTouches[0].clientX,e.changedTouches[0].clientY);
       if(h) selectModule(h);
     }
-    if(mode==='drag') pushHist();
+    if(mode==='drag'&&dragMod){ snapModule(dragMod); applyModPos(dragMod); if(typeof buildCountertop==='function') buildCountertop(); pushHist(); }
     mode=null; dragMod=null;
   });
 }
@@ -812,15 +815,10 @@ function layoutRow(){
   var backZ=-room.depth/2;
   var x=startX;
   modules.forEach(function(m){
-    if(m._manual){ // elle taşınmışsa dokunma
-      if(m.mesh) m.mesh.position.set(m.x,(m.type.indexOf('wall')===0?1.45+m.h/2:m.h/2),m.z);
-      return;
-    }
+    if(m._manual){ applyModPos(m); return; }
     m.x=x+m.w/2;
-    var y=m.h/2;
-    if(m.type.indexOf('wall')===0) y=1.45+m.h/2;
     m.z=backZ + m.d/2 + 0.02;
-    if(m.mesh){ m.mesh.position.set(m.x,y,m.z); if(m.rot) m.mesh.rotation.y=m.rot; }
+    applyModPos(m);
     x+=m.w;
   });
   buildCountertop();
@@ -988,6 +986,33 @@ function closePalette(){
 }
 
 // ════════ PROPS UI ════════
+// boyut giriş kutusu (sayı yaz + artı/eksi)
+function dimBox(label,axis,valM){
+  var mm=Math.round(valM*1000);
+  return '<div style="text-align:center">'+
+    '<div style="font-size:10px;color:var(--gray2);font-weight:700;margin-bottom:4px">'+label+'</div>'+
+    '<div style="display:flex;align-items:center;gap:2px">'+
+      '<button onclick="stepDim(\''+axis+'\',-10)" style="width:26px;height:36px;border:1px solid var(--line);background:var(--panel2);border-radius:6px 0 0 6px;font-size:16px;cursor:pointer;color:var(--ink)">−</button>'+
+      '<input type="number" id="dim_'+axis+'" value="'+mm+'" inputmode="numeric" '+
+        'onchange="setDimMM(\''+axis+'\',this.value)" '+
+        'style="width:100%;height:36px;text-align:center;border:1px solid var(--line);border-left:none;border-right:none;background:#fff;color:var(--ink);font-size:14px;font-weight:700;padding:0">'+
+      '<button onclick="stepDim(\''+axis+'\',10)" style="width:26px;height:36px;border:1px solid var(--line);background:var(--panel2);border-radius:0 6px 6px 0;font-size:16px;cursor:pointer;color:var(--ink)">+</button>'+
+    '</div>'+
+  '</div>';
+}
+function setDimMM(axis,mm){
+  mm=parseInt(mm)||200;
+  mm=Math.max(100,Math.min(3000,mm));
+  setDim(axis, mm);
+}
+function stepDim(axis,delta){
+  if(!selected) return;
+  var cur=Math.round(selected[axis]*1000);
+  setDimMM(axis, cur+delta);
+  var inp=document.getElementById('dim_'+axis);
+  if(inp) inp.value=Math.round(selected[axis]*1000);
+}
+
 function renderProps(){
   if(!selected) return;
   var m=selected;
@@ -1002,12 +1027,13 @@ function renderProps(){
 
   var body=document.getElementById('propsBody');
   var html=
-    '<div class="prop-row"><label>Ширина <span class="val">'+Math.round(m.w*1000)+' мм</span></label>'+
-      '<input type="range" min="200" max="2400" step="10" value="'+Math.round(m.w*1000)+'" oninput="setDim(\'w\',this.value)"></div>'+
-    '<div class="prop-row"><label>Высота <span class="val">'+Math.round(m.h*1000)+' мм</span></label>'+
-      '<input type="range" min="200" max="2400" step="10" value="'+Math.round(m.h*1000)+'" oninput="setDim(\'h\',this.value)"></div>'+
-    '<div class="prop-row"><label>Глубина <span class="val">'+Math.round(m.d*1000)+' мм</span></label>'+
-      '<input type="range" min="200" max="900" step="10" value="'+Math.round(m.d*1000)+'" oninput="setDim(\'d\',this.value)"></div>'+
+    '<div class="prop-row"><label>Размеры (мм)</label>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">'+
+        dimBox('Ширина','w',m.w)+
+        dimBox('Высота','h',m.h)+
+        dimBox('Глубина','d',m.d)+
+      '</div>'+
+    '</div>'+
     '<div class="prop-row"><label>Цвет фасада</label><div class="color-grid">'+
       COLORS.map(function(c){ return '<div class="csw'+(c.hex===m.color?' active':'')+'" style="background:'+c.hex+'" onclick="setColor(\''+c.hex+'\')"></div>'; }).join('')+
     '</div></div>'+
@@ -1053,7 +1079,18 @@ function renderProps(){
     '</div></div>';
   }
 
-  html+='<div class="prop-row" style="border-top:1px solid var(--line);padding-top:12px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+  html+='<div class="prop-row" style="border-top:1px solid var(--line);padding-top:12px">'+
+    '<label>📍 Положение (двигай или кнопками)</label>'+
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px">'+
+      '<button onclick="nudge(-0.05,0)" style="padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-size:16px;cursor:pointer">←</button>'+
+      '<button onclick="nudge(0.05,0)" style="padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-size:16px;cursor:pointer">→</button>'+
+      '<button onclick="nudge(0,-0.05)" style="padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-size:16px;cursor:pointer">↑</button>'+
+      '<button onclick="nudge(0,0.05)" style="padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-size:16px;cursor:pointer">↓</button>'+
+    '</div>'+
+    '<button onclick="resetPos()" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-size:11px;font-weight:700;color:var(--gray2);cursor:pointer">↩️ Вернуть в ряд (авто)</button>'+
+  '</div>';
+
+  html+='<div class="prop-row"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
       '<button onclick="rotateSelected()" style="padding:11px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-weight:700;font-size:12px;color:var(--ink);cursor:pointer">🔄 Повернуть 90°</button>'+
       '<button onclick="toggleFront()" style="padding:11px;border-radius:8px;border:1px solid var(--line);background:'+(m.hideFront?'#fff7ed':'var(--panel2)')+';font-weight:700;font-size:12px;color:var(--ink);cursor:pointer">'+(m.hideFront?'👁 Показать':'🚪 Скрыть')+' фасад</button>'+
     '</div></div>'+
@@ -1062,6 +1099,57 @@ function renderProps(){
       '<button class="btn-del" onclick="deleteSelected()">🗑 Удалить</button>'+
     '</div>';
   body.innerHTML=html;
+}
+
+// hassas taşıma (butonla)
+function nudge(dx,dz){
+  if(!selected) return;
+  selected._manual=true;
+  selected.x+=dx; selected.z+=dz;
+  applyModPos(selected);
+  if(typeof buildCountertop==='function') buildCountertop();
+  pushHist();
+}
+
+// modülün doğru y (yükseklik) konumunu uygula - alt yerde, üst yukarıda
+function modBaseY(m){
+  if(m.type.indexOf('wall')===0) return 1.45 + m.h/2;   // üst dolap (asılı)
+  return m.h/2;                                          // alt/penal: zeminde
+}
+function applyModPos(m){
+  if(m.mesh){ m.mesh.position.set(m.x, modBaseY(m), m.z); if(m.rot) m.mesh.rotation.y=m.rot; }
+}
+
+// 🧲 MIKNATIS: taşınan modülü en yakın komşunun kenarına yapıştır
+function snapModule(m){
+  var SNAP=0.08; // 8cm yakınsa yapış
+  var isWall = m.type.indexOf('wall')===0;
+  var best=null, bestDist=SNAP;
+  modules.forEach(function(o){
+    if(o===m) return;
+    var oWall=o.type.indexOf('wall')===0;
+    if(isWall!==oWall) return; // alt-alt, üst-üst yapışsın
+    // sağ kenarına / sol kenarına yapışma
+    var rightX=o.x+o.w/2+m.w/2;  // o'nun sağına
+    var leftX =o.x-o.w/2-m.w/2;  // o'nun soluna
+    [{x:rightX,z:o.z},{x:leftX,z:o.z}].forEach(function(cand){
+      var dist=Math.hypot(m.x-cand.x, m.z-cand.z);
+      if(dist<bestDist){ bestDist=dist; best=cand; }
+    });
+  });
+  if(best){ m.x=best.x; m.z=best.z; }
+  // duvara da yapış (arka duvar / sol duvar)
+  var backZ=-room.depth/2 + m.d/2 + 0.02;
+  if(Math.abs(m.z-backZ)<0.1) m.z=backZ;
+  var leftX2=-room.width/2 + m.w/2 + 0.02;
+  if(Math.abs(m.x-leftX2)<0.1) m.x=leftX2;
+}
+// otomatik sıraya geri döndür
+function resetPos(){
+  if(!selected) return;
+  selected._manual=false;
+  layoutRow();
+  pushHist();
 }
 
 // Kademe 4: furnitura ayarla
