@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alfa 3D Planner — Панель менеджера</title>
+<style>
+  :root{
+    --orange:#f97316; --orange-dark:#ea580c; --dark:#0f172a; --dark2:#1e293b;
+    --gray:#64748b; --light:#f1f5f9; --border:#e2e8f0; --green:#16a34a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:#0a0e1a;color:#e2e8f0;padding:20px}
+
+  .header{margin-bottom:32px}
+  .header h1{font-size:24px;font-weight:900;margin-bottom:8px}
+  .header p{color:var(--gray);font-size:14px}
+
+  .projects-list{max-width:1200px;margin:0 auto}
+  .project-item{background:var(--dark2);border:1px solid rgba(255,255,255,.1);border-radius:12px;
+    padding:20px;margin-bottom:16px;display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center}
+  .project-info h3{font-weight:700;font-size:15px;margin-bottom:8px}
+  .project-meta{display:flex;gap:16px;font-size:12px;color:var(--gray);margin-bottom:12px}
+  .project-status-badge{display:inline-block;padding:6px 10px;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:12px}
+  .status-draft{background:rgba(100,116,139,.2);color:var(--gray)}
+  .status-sent{background:rgba(249,115,22,.2);color:var(--orange)}
+  .status-approved{background:rgba(34,197,94,.2);color:#22c55e}
+  .status-rejected{background:rgba(220,38,38,.2);color:#ef4444}
+
+  .project-actions{display:flex;flex-direction:column;gap:8px}
+  .btn-view{padding:10px 16px;background:var(--orange);color:#fff;border:none;border-radius:6px;
+    font-weight:700;cursor:pointer;font-size:13px;transition:.2s}
+  .btn-view:hover{background:var(--orange-dark)}
+  .btn-approve{padding:10px 16px;background:rgba(34,197,94,.3);color:#22c55e;border:1px solid rgba(34,197,94,.5);
+    border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;transition:.2s}
+  .btn-approve:hover{background:rgba(34,197,94,.4)}
+  .btn-reject{padding:10px 16px;background:rgba(220,38,38,.3);color:#ef4444;border:1px solid rgba(220,38,38,.5);
+    border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;transition:.2s}
+  .btn-reject:hover{background:rgba(220,38,38,.4)}
+  .btn-whatsapp{padding:10px 16px;background:#25d366;color:#fff;border:none;border-radius:6px;
+    font-weight:700;cursor:pointer;font-size:13px;transition:.2s;display:flex;align-items:center;gap:6px;justify-content:center}
+  .btn-whatsapp:hover{background:#1fab52}
+
+  /* Modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;display:none;
+    align-items:center;justify-content:center;padding:20px;overflow-y:auto}
+  .modal.open{display:flex}
+  .modal-content{background:var(--dark2);border-radius:12px;padding:28px;max-width:700px;width:100%;
+    border:1px solid rgba(255,255,255,.1);max-height:90vh;overflow-y:auto}
+  .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+  .modal-header h2{font-size:18px;font-weight:700}
+  .close-btn{background:none;border:none;color:#fff;font-size:24px;cursor:pointer;padding:0}
+  .close-btn:hover{color:var(--orange)}
+
+  .render-image{width:100%;border-radius:8px;margin-bottom:16px}
+  .project-details{background:rgba(255,255,255,.02);padding:16px;border-radius:8px;margin-bottom:16px}
+  .detail-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+  .detail-row:last-child{border-bottom:none}
+  .detail-label{color:var(--gray);font-size:12px}
+  .detail-value{font-weight:700}
+
+  .comments-section{margin-bottom:16px}
+  .comments-section h3{font-size:13px;font-weight:700;margin-bottom:12px;color:var(--gray)}
+  .comment{background:rgba(255,255,255,.02);padding:12px;border-radius:6px;margin-bottom:8px;font-size:12px}
+  .comment-author{font-weight:700;color:var(--orange);margin-bottom:4px}
+  .comment-text{color:#cbd5e1;line-height:1.4}
+  .comment-time{font-size:10px;color:var(--gray);margin-top:6px}
+
+  .comment-form{display:flex;gap:8px}
+  .comment-form textarea{flex:1;padding:10px;background:#0f172a;border:1px solid rgba(255,255,255,.1);
+    border-radius:6px;color:#fff;font-family:inherit;resize:vertical;min-height:60px}
+  .comment-form button{padding:10px 16px;background:var(--orange);color:#fff;border:none;border-radius:6px;
+    font-weight:700;cursor:pointer;align-self:flex-end}
+
+  .decision-buttons{display:flex;gap:10px;margin-top:16px}
+  .decision-buttons button{flex:1;padding:12px;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;transition:.2s}
+  .approve-final{background:#22c55e;color:#fff}
+  .approve-final:hover{background:rgba(34,197,94,.8)}
+  .reject-final{background:#ef4444;color:#fff}
+  .reject-final:hover{background:rgba(239,68,68,.8)}
+
+  .empty{text-align:center;padding:40px 20px;color:var(--gray)}
+  .empty .icon{font-size:48px;margin-bottom:16px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Панель менеджера</h1>
+  <p>Просмотр, проверка и одобрение проектов мебели</p>
+</div>
+
+<div class="projects-list" id="projectsList">
+  <!-- JS заполнит -->
+</div>
+
+<!-- Project Review Modal -->
+<div class="modal" id="reviewModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="modalProjectName">Проект</h2>
+      <button class="close-btn" onclick="closeReviewModal()">×</button>
+    </div>
+
+    <img id="renderImage" src="" alt="Render" class="render-image" style="display:none">
+
+    <div class="project-details">
+      <div class="detail-row">
+        <span class="detail-label">👤 Клиент</span>
+        <span class="detail-value" id="detailCustomer">-</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">📞 Телефон</span>
+        <span class="detail-value" id="detailPhone">-</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">📦 Модулей</span>
+        <span class="detail-value" id="detailModules">0</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">🪵 ЛДСП</span>
+        <span class="detail-value" id="detailBoard">0 м²</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">🚪 Фасады</span>
+        <span class="detail-value" id="detailFacade">0 м²</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">📏 Кромка</span>
+        <span class="detail-value" id="detailEdge">0 м</span>
+      </div>
+    </div>
+
+    <div class="comments-section">
+      <h3>💬 Комментарии</h3>
+      <div id="commentsList" style="margin-bottom:12px">
+        <!-- Comments here -->
+      </div>
+      <div class="comment-form">
+        <textarea id="commentText" placeholder="Добавить комментарий..."></textarea>
+        <button onclick="addComment()">Отправить</button>
+      </div>
+    </div>
+
+    <div class="decision-buttons" id="decisionButtons">
+      <button class="approve-final" onclick="approveProject()">✓ Одобрить</button>
+      <button class="reject-final" onclick="rejectProject()">✗ Отклонить</button>
+    </div>
+
+    <button class="btn-whatsapp" style="width:100%;margin-top:16px" onclick="sendWhatsApp()">
+      💬 Отправить клиенту в WhatsApp
+    </button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://fciofuexujtxxjlamxno.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjaW9mdWV4dWp0eHhqbGFteG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzA0OTkwNzcsImV4cCI6MjA0NjA3NTA3N30.NmT0G2aMwLzq-zELNc4BpYsQ-4Ii4zJQVPG_f0iG0vk';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let projects = [];
+let currentReviewProject = null;
+
+async function loadProjects(){
+  const {data, error} = await supabase.from('alfa_3d_projects').select('*').order('created_at', {ascending:false});
+  if(error) console.error('Load error:', error);
+  else projects = data || [];
+  renderProjects();
+}
+
+function renderProjects(){
+  const container = document.getElementById('projectsList');
+  
+  if(projects.length === 0){
+    container.innerHTML = `
+      <div class="empty">
+        <div class="icon">📭</div>
+        <p>Проектов для проверки нет</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = projects.map(p => `
+    <div class="project-item">
+      <div class="project-info">
+        <h3>${p.project_name}</h3>
+        <div class="project-meta">
+          <span>👤 ${p.customer_name}</span>
+          <span>📞 ${p.customer_phone}</span>
+          <span>📅 ${new Date(p.created_at).toLocaleDateString('ru-RU')}</span>
+        </div>
+        <div class="project-status-badge status-${p.status || 'draft'}">
+          ${getStatusText(p.status)}
+        </div>
+      </div>
+      <div class="project-actions">
+        <button class="btn-view" onclick="openReviewModal('${p.id}')">👁 Просмотр</button>
+        <button class="btn-whatsapp" onclick="sendWhatsAppDirect('${p.customer_phone}', '${p.project_name}')">
+          💬 WhatsApp
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function getStatusText(status){
+  const map = {draft:'Черновик', sent:'Отправлено', approved:'✓ Одобрено', rejected:'✗ Отклонено'};
+  return map[status] || 'Черновик';
+}
+
+async function openReviewModal(projectId){
+  const project = projects.find(p => p.id === projectId);
+  if(!project) return;
+
+  currentReviewProject = project;
+  
+  document.getElementById('modalProjectName').textContent = project.project_name;
+  document.getElementById('detailCustomer').textContent = project.customer_name;
+  document.getElementById('detailPhone').textContent = project.customer_phone;
+  document.getElementById('detailModules').textContent = project.stats?.modules || 0;
+  document.getElementById('detailBoard').textContent = (project.stats?.board || 0) + ' м²';
+  document.getElementById('detailFacade').textContent = (project.stats?.facade || 0) + ' м²';
+  document.getElementById('detailEdge').textContent = (project.stats?.edge || 0) + ' м';
+
+  if(project.render_image){
+    document.getElementById('renderImage').src = project.render_image;
+    document.getElementById('renderImage').style.display = 'block';
+  }
+
+  // Комментарии
+  const comments = project.comments || [];
+  const commentsList = document.getElementById('commentsList');
+  commentsList.innerHTML = comments.length ? comments.map(c => `
+    <div class="comment">
+      <div class="comment-author">${c.author}</div>
+      <div class="comment-text">${c.text}</div>
+      <div class="comment-time">${new Date(c.created_at).toLocaleString('ru-RU')}</div>
+    </div>
+  `).join('') : '<p style="color:var(--gray);font-size:12px">Нет комментариев</p>';
+
+  // Status buttons
+  const decisionBtn = document.getElementById('decisionButtons');
+  if(project.status === 'approved' || project.status === 'rejected'){
+    decisionBtn.innerHTML = `<p style="color:var(--gray);text-align:center">Проект уже обработан</p>`;
+  }
+
+  document.getElementById('reviewModal').classList.add('open');
+}
+
+function closeReviewModal(){
+  document.getElementById('reviewModal').classList.remove('open');
+  currentReviewProject = null;
+}
+
+function addComment(){
+  if(!currentReviewProject) return;
+  const text = document.getElementById('commentText').value.trim();
+  if(!text) return;
+
+  const comment = {
+    author: 'Менеджер',
+    text: text,
+    created_at: new Date().toISOString()
+  };
+
+  if(!currentReviewProject.comments) currentReviewProject.comments = [];
+  currentReviewProject.comments.push(comment);
+  
+  document.getElementById('commentText').value = '';
+  openReviewModal(currentReviewProject.id); // Refresh
+}
+
+async function approveProject(){
+  if(!currentReviewProject) return;
+  
+  currentReviewProject.status = 'approved';
+  const {error} = await supabase.from('alfa_3d_projects')
+    .update({status:'approved', comments:currentReviewProject.comments})
+    .eq('id', currentReviewProject.id);
+
+  if(error) console.error('Update error:', error);
+  else {
+    alert('✓ Проект одобрен');
+    closeReviewModal();
+    loadProjects();
+  }
+}
+
+async function rejectProject(){
+  if(!currentReviewProject) return;
+  const reason = prompt('Причина отклонения:');
+  if(!reason) return;
+
+  currentReviewProject.status = 'rejected';
+  currentReviewProject.rejection_reason = reason;
+
+  const {error} = await supabase.from('alfa_3d_projects')
+    .update({status:'rejected', rejection_reason:reason, comments:currentReviewProject.comments})
+    .eq('id', currentReviewProject.id);
+
+  if(error) console.error('Update error:', error);
+  else {
+    alert('✗ Проект отклонен');
+    closeReviewModal();
+    loadProjects();
+  }
+}
+
+function sendWhatsApp(){
+  if(!currentReviewProject) return;
+  const phone = currentReviewProject.customer_phone.replace(/\D/g, '');
+  const text = `Привет! 👋\n\nПроект мебели "${currentReviewProject.project_name}" готов к обсуждению.\n\n📊 Технические параметры:\n🪵 ЛДСП: ${currentReviewProject.stats?.board || 0}м²\n🚪 Фасады: ${currentReviewProject.stats?.facade || 0}м²\n📏 Кромка: ${currentReviewProject.stats?.edge || 0}м\n\nДля просмотра 3D: [ссылка на проект]\n\nДожидаемся вашего отзыва!`;
+  
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+}
+
+function sendWhatsAppDirect(phone, projectName){
+  const cleanPhone = phone.replace(/\D/g, '');
+  const text = `Привет! 👋 Ваш проект "${projectName}" готов. Для просмотра в 3D нажмите здесь: [ссылка]`;
+  window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`, '_blank');
+}
+
+// Init
+loadProjects();
+</script>
+
+</body>
+</html>

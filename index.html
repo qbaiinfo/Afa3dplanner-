@@ -3,806 +3,344 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Baibesik.kz — 3D Конструктор мебели</title>
+<title>Alfa 3D Planner — Проектирование мебели</title>
 <style>
   :root{
     --orange:#f97316; --orange-dark:#ea580c; --dark:#0f172a; --dark2:#1e293b;
     --gray:#64748b; --light:#f1f5f9; --border:#e2e8f0; --green:#16a34a;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Segoe UI',system-ui,sans-serif;background:#0a0e1a;color:#e2e8f0;overflow:hidden;height:100vh}
+  body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#0a0e1a;color:#e2e8f0;min-height:100vh;padding:20px}
 
-  /* Üst bar */
-  .topbar{position:fixed;top:0;left:0;right:0;height:54px;background:var(--dark2);
-    display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:100;
-    box-shadow:0 2px 12px rgba(0,0,0,.4);border-bottom:1px solid rgba(255,255,255,.06)}
-  .logo{font-weight:900;font-size:18px;letter-spacing:1px;color:#fff}
+  /* Header */
+  .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;padding:0 20px}
+  .logo{font-weight:900;font-size:24px;letter-spacing:1px}
   .logo span{color:var(--orange)}
-  .logo small{font-size:11px;font-weight:600;opacity:.7;margin-left:6px}
-  .topbar-actions{display:flex;gap:8px}
-  .tb-btn{padding:8px 14px;background:rgba(255,255,255,.08);border:none;border-radius:8px;color:#fff;
-    font-size:13px;font-weight:700;cursor:pointer;transition:.2s;display:flex;align-items:center;gap:6px}
-  .tb-btn:hover{background:rgba(255,255,255,.15)}
-  .tb-btn.primary{background:var(--orange)}
-  .tb-btn.primary:hover{background:var(--orange-dark)}
+  .header-actions{display:flex;gap:12px}
+  .btn-primary{padding:10px 16px;background:var(--orange);color:#fff;border:none;border-radius:8px;
+    font-weight:700;cursor:pointer;font-size:14px;transition:.2s}
+  .btn-primary:hover{background:var(--orange-dark)}
+  .btn-ghost{padding:10px 16px;background:transparent;color:#e2e8f0;border:1px solid rgba(255,255,255,.2);
+    border-radius:8px;font-weight:700;cursor:pointer;font-size:14px;transition:.2s}
+  .btn-ghost:hover{background:rgba(255,255,255,.08)}
 
-  /* Sol panel - modüller */
-  .sidebar{position:fixed;top:54px;left:0;bottom:0;width:240px;background:var(--dark2);
-    z-index:90;overflow-y:auto;padding:14px;border-right:1px solid rgba(255,255,255,.06)}
-  .side-title{font-size:11px;font-weight:800;color:var(--gray);text-transform:uppercase;
-    letter-spacing:1px;margin:14px 0 8px}
-  .side-title:first-child{margin-top:0}
-  .module-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  .module-btn{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:10px;
-    padding:10px 6px;cursor:pointer;transition:.2s;text-align:center;color:#cbd5e1}
-  .module-btn:hover{background:var(--orange);color:#fff;transform:translateY(-2px)}
-  .module-btn .ico{font-size:24px;display:block;margin-bottom:4px}
-  .module-btn .nm{font-size:10px;font-weight:700;line-height:1.2}
+  /* Projects Grid */
+  .projects-container{max-width:1400px;margin:0 auto}
+  .projects-title{font-size:18px;font-weight:700;margin-bottom:16px;padding:0 20px}
+  .projects-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;padding:0 20px}
 
-  /* Sağ panel - özellikler */
-  .props{position:fixed;top:54px;right:0;bottom:0;width:260px;background:var(--dark2);
-    z-index:90;overflow-y:auto;padding:14px;border-left:1px solid rgba(255,255,255,.06);
-    transform:translateX(100%);transition:transform .3s}
-  .props.open{transform:translateX(0)}
-  .prop-row{margin-bottom:12px}
-  .prop-row label{font-size:11px;font-weight:700;color:var(--gray);display:block;margin-bottom:4px}
-  .prop-row input[type=number],.prop-row input[type=range]{width:100%}
-  .prop-row input[type=number]{padding:8px;background:#0f172a;border:1px solid rgba(255,255,255,.1);
-    border-radius:6px;color:#fff;font-size:13px}
-  .prop-val{font-size:12px;color:var(--orange);font-weight:700;float:right}
-  .color-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
-  .color-sw{width:28px;height:28px;border-radius:6px;cursor:pointer;border:2px solid transparent;transition:.15s}
-  .color-sw.active{border-color:#fff;transform:scale(1.1)}
-  .del-btn{width:100%;padding:10px;background:#dc2626;border:none;border-radius:8px;color:#fff;
-    font-weight:700;cursor:pointer;margin-top:8px}
+  /* Project Card */
+  .project-card{background:var(--dark2);border:1px solid rgba(255,255,255,.1);border-radius:12px;
+    padding:16px;cursor:pointer;transition:.3s;position:relative;overflow:hidden}
+  .project-card:hover{background:var(--dark);border-color:var(--orange);transform:translateY(-4px);box-shadow:0 8px 16px rgba(249,115,22,.2)}
+  .project-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--orange);transform:scaleX(0);transition:.3s}
+  .project-card:hover::before{transform:scaleX(1)}
 
-  /* 3D canvas alanı */
-  #canvas-wrap{position:fixed;top:54px;left:240px;right:0;bottom:0;background:linear-gradient(180deg,#1a2236 0%,#0a0e1a 100%)}
-  #canvas-wrap canvas{display:block}
+  .project-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+  .project-name{font-weight:700;font-size:15px}
+  .project-date{font-size:11px;color:var(--gray)}
+  .project-customer{font-size:13px;color:#cbd5e1;margin-bottom:8px}
+  .project-stats{display:flex;gap:12px;font-size:12px;color:var(--gray);margin-bottom:12px}
+  .project-status{display:inline-block;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:700;
+    background:rgba(22,163,74,.2);color:var(--green)}
+  .project-status.draft{background:rgba(100,116,139,.2);color:var(--gray)}
+  .project-status.approved{background:rgba(34,197,94,.2);color:#22c55e}
+  .project-status.rejected{background:rgba(220,38,38,.2);color:#ef4444}
 
-  /* Alt bilgi çubuğu */
-  .infobar{position:fixed;bottom:0;left:240px;right:0;height:46px;background:rgba(15,23,42,.92);
-    backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:space-between;
-    padding:0 16px;z-index:80;border-top:1px solid rgba(255,255,255,.06)}
-  .info-stats{display:flex;gap:20px}
-  .info-stat{font-size:12px}
-  .info-stat b{color:var(--orange);font-size:14px;margin-left:4px}
-  .hint{font-size:11px;color:var(--gray)}
+  .project-actions{display:flex;gap:8px;margin-top:12px}
+  .project-actions button{flex:1;padding:8px;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;transition:.2s}
+  .edit-btn{background:var(--orange);color:#fff}
+  .edit-btn:hover{background:var(--orange-dark)}
+  .delete-btn{background:rgba(220,38,38,.2);color:#ef4444;border:1px solid rgba(220,38,38,.4)}
+  .delete-btn:hover{background:rgba(220,38,38,.3)}
 
-  /* Boş durum mesajı */
-  .empty-hint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;
-    color:var(--gray);pointer-events:none;z-index:5}
-  .empty-hint .big{font-size:48px;margin-bottom:12px;opacity:.4}
-  .empty-hint p{font-size:14px;max-width:280px;line-height:1.5}
+  /* New Project Card */
+  .new-project-card{background:rgba(249,115,22,.1);border:2px dashed var(--orange);border-radius:12px;
+    padding:32px 16px;text-align:center;cursor:pointer;transition:.3s;display:flex;
+    flex-direction:column;align-items:center;justify-content:center;min-height:180px}
+  .new-project-card:hover{background:rgba(249,115,22,.15);border-color:var(--orange-dark)}
+  .new-project-card .big-icon{font-size:32px;margin-bottom:8px}
+  .new-project-card p{font-size:14px;font-weight:700;color:#fff}
 
-  /* Render modal */
-  .modal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;display:none;
-    align-items:center;justify-content:center;padding:20px}
+  /* Modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px}
   .modal.open{display:flex}
-  .modal-box{background:var(--dark2);border-radius:16px;padding:20px;max-width:90vw;max-height:90vh;overflow:auto}
-  .modal-box h3{margin-bottom:14px;font-size:18px}
-  .modal-box img{max-width:100%;border-radius:8px;margin-bottom:14px}
-  .modal-actions{display:flex;gap:10px;justify-content:flex-end}
+  .modal-content{background:var(--dark2);border-radius:12px;padding:28px;max-width:500px;width:100%;border:1px solid rgba(255,255,255,.1)}
+  .modal-title{font-size:18px;font-weight:700;margin-bottom:20px}
+  .form-group{margin-bottom:16px}
+  .form-group label{display:block;font-size:12px;font-weight:700;color:var(--gray);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+  .form-group input,.form-group select{width:100%;padding:10px 12px;background:#0f172a;border:1px solid rgba(255,255,255,.1);
+    border-radius:6px;color:#fff;font-size:14px;font-family:inherit}
+  .form-group input::placeholder{color:var(--gray)}
+  .form-group select option{background:#0f172a;color:#fff}
 
-  /* Mobil uyarı */
-  .mobile-warn{display:none}
+  .templates-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px}
+  .template-btn{padding:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;
+    cursor:pointer;transition:.2s;text-align:center;color:#cbd5e1;font-size:12px;font-weight:700}
+  .template-btn:hover{background:rgba(255,255,255,.1);border-color:var(--orange)}
+  .template-btn.selected{background:var(--orange);color:#fff;border-color:var(--orange)}
+  .template-icon{font-size:20px;margin-bottom:4px;display:block}
+
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+  .btn-cancel{padding:10px 16px;background:rgba(255,255,255,.08);color:#fff;border:none;border-radius:6px;
+    cursor:pointer;font-weight:700;transition:.2s}
+  .btn-cancel:hover{background:rgba(255,255,255,.15)}
+
+  /* Empty State */
+  .empty-state{text-align:center;padding:60px 20px}
+  .empty-state .icon{font-size:48px;margin-bottom:16px}
+  .empty-state h2{font-size:18px;font-weight:700;margin-bottom:8px}
+  .empty-state p{color:var(--gray);font-size:14px;margin-bottom:20px}
+
+  /* Responsive */
   @media(max-width:768px){
-    .sidebar{width:200px}
-    #canvas-wrap,.infobar{left:200px}
-    .module-grid{grid-template-columns:1fr}
+    .projects-grid{grid-template-columns:1fr}
+    .header{flex-direction:column;gap:16px;align-items:flex-start}
   }
 
-  /* View küpleri (kamera kontrol) */
-  .view-controls{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:6px;z-index:10}
-  .view-btn{width:38px;height:38px;background:rgba(30,41,59,.9);border:1px solid rgba(255,255,255,.1);
-    border-radius:8px;color:#fff;cursor:pointer;font-size:14px;font-weight:700;transition:.2s}
-  .view-btn:hover{background:var(--orange)}
-  .room-setup{position:absolute;top:12px;left:12px;background:rgba(30,41,59,.92);border-radius:10px;
-    padding:10px 12px;z-index:10;display:flex;gap:10px;align-items:center}
-  .room-setup label{font-size:11px;color:var(--gray);font-weight:700}
-  .room-setup input{width:60px;padding:5px;background:#0f172a;border:1px solid rgba(255,255,255,.1);
-    border-radius:5px;color:#fff;font-size:12px}
+  /* Loading */
+  .loading{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.2);border-top-color:var(--orange);
+    border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
 
-<div class="topbar">
-  <div class="logo">BAIBESIK<span>.KZ</span><small>3D Конструктор</small></div>
-  <div class="topbar-actions">
-    <button class="tb-btn" onclick="clearAll()">🗑 Очистить</button>
-    <button class="tb-btn" onclick="takeRender()">📸 Рендер</button>
-    <button class="tb-btn primary" onclick="sendToManager()">📤 Заказать расчёт</button>
+<div class="header">
+  <div>
+    <div class="logo">ALFA<span> 3D</span> PLANNER</div>
+  </div>
+  <div class="header-actions">
+    <button class="btn-ghost" onclick="openSettings()">⚙️ Параметры</button>
+    <button class="btn-ghost" onclick="logout()">🚪 Выход</button>
   </div>
 </div>
 
-<div class="sidebar">
-  <div class="side-title">🍳 Кухня — низ</div>
-  <div class="module-grid">
-    <div class="module-btn" onclick="addModule('base_cabinet')"><span class="ico">🗄️</span><span class="nm">Тумба</span></div>
-    <div class="module-btn" onclick="addModule('base_drawer')"><span class="ico">🗃️</span><span class="nm">Ящики</span></div>
-    <div class="module-btn" onclick="addModule('base_sink')"><span class="ico">🚰</span><span class="nm">Мойка</span></div>
-    <div class="module-btn" onclick="addModule('base_corner')"><span class="ico">📐</span><span class="nm">Угловая</span></div>
-  </div>
-
-  <div class="side-title">🍳 Кухня — верх</div>
-  <div class="module-grid">
-    <div class="module-btn" onclick="addModule('wall_cabinet')"><span class="ico">🪟</span><span class="nm">Навесной</span></div>
-    <div class="module-btn" onclick="addModule('wall_glass')"><span class="ico">🪞</span><span class="nm">Витрина</span></div>
-  </div>
-
-  <div class="side-title">👔 Шкаф / Гардероб</div>
-  <div class="module-grid">
-    <div class="module-btn" onclick="addModule('wardrobe')"><span class="ico">🚪</span><span class="nm">Шкаф</span></div>
-    <div class="module-btn" onclick="addModule('wardrobe_2door')"><span class="ico">🏛️</span><span class="nm">2-дв. шкаф</span></div>
-    <div class="module-btn" onclick="addModule('shelf_unit')"><span class="ico">📚</span><span class="nm">Стеллаж</span></div>
-  </div>
-
-  <div class="side-title">🔧 Техника / Декор</div>
-  <div class="module-grid">
-    <div class="module-btn" onclick="addModule('fridge')"><span class="ico">🧊</span><span class="nm">Холодильник</span></div>
-    <div class="module-btn" onclick="addModule('stove')"><span class="ico">🔥</span><span class="nm">Плита</span></div>
-  </div>
-</div>
-
-<div class="props" id="propsPanel">
-  <div class="side-title">⚙️ Параметры модуля</div>
-  <div id="propsContent"></div>
-</div>
-
-<div id="canvas-wrap">
-  <div class="room-setup">
-    <label>Комната:</label>
-    <input type="number" id="roomW" value="400" onchange="updateRoom()"> ×
-    <input type="number" id="roomD" value="300" onchange="updateRoom()"> см
-  </div>
-  <div class="view-controls">
-    <button class="view-btn" onclick="setView('persp')" title="3D вид">3D</button>
-    <button class="view-btn" onclick="setView('top')" title="Сверху">⬇</button>
-    <button class="view-btn" onclick="setView('front')" title="Спереди">▢</button>
-    <button class="view-btn" onclick="resetCam()" title="Сброс">⟲</button>
-  </div>
-  <div class="empty-hint" id="emptyHint">
-    <div class="big">🪑</div>
-    <p>Выберите модуль слева, чтобы начать проектировать кухню или шкаф</p>
-  </div>
-</div>
-
-<div class="infobar">
-  <div class="info-stats">
-    <div class="info-stat">📦 Модулей: <b id="statModules">0</b></div>
-    <div class="info-stat">🪵 ЛДСП: <b id="statBoard">0</b> м²</div>
-    <div class="info-stat">🚪 Фасады: <b id="statFacade">0</b> м²</div>
-    <div class="info-stat">📏 Кромка: <b id="statEdge">0</b> м</div>
-  </div>
-  <div class="hint">🖱️ Вращение: ЛКМ · Перемещение: ПКМ · Зум: колесо</div>
-</div>
-
-<div class="modal" id="renderModal">
-  <div class="modal-box">
-    <h3>📸 Рендер проекта</h3>
-    <img id="renderImg" src="" alt="render">
-    <div class="modal-actions">
-      <button class="tb-btn" onclick="closeRender()">Закрыть</button>
-      <button class="tb-btn primary" onclick="downloadRender()">💾 Скачать</button>
+<div class="projects-container">
+  <div class="projects-title">Мои проекты</div>
+  <div class="projects-grid" id="projectsGrid">
+    <div class="new-project-card" onclick="openNewProjectModal()">
+      <div class="big-icon">➕</div>
+      <p>Новый проект</p>
     </div>
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script>
-// ═══════════════════════════════════════════════════════════════
-// BAIBESIK 3D KONSTRUKTÖR
-// ═══════════════════════════════════════════════════════════════
-let scene, camera, renderer, raycaster, mouse;
-let modules = []; // {mesh, type, w, h, d, x, z, bodyColor, facadeColor, ...}
-let selectedModule = null;
-let roomW = 400, roomD = 300; // cm
-const SCALE = 0.01; // cm → metre (three.js birimi)
-
-// Renk paletleri
-const BODY_COLORS = ['#f5f0e8','#d9c8a9','#8b6f47','#3d3128','#ffffff','#1a1a1a','#c9a87c'];
-const FACADE_COLORS = ['#ffffff','#f5f0e8','#2c3e50','#16a085','#e74c3c','#8e44ad','#34495e','#d35400','#1a1a1a','#ecf0f1'];
-
-// Modül şablonları (cm cinsinden standart boyutlar)
-const TEMPLATES = {
-  base_cabinet:  {w:60, h:85, d:60, name:'Тумба', cat:'base', facade:1, shelves:1},
-  base_drawer:   {w:60, h:85, d:60, name:'Ящики', cat:'base', facade:3, shelves:0, drawers:3},
-  base_sink:     {w:80, h:85, d:60, name:'Мойка', cat:'base', facade:2, shelves:0, sink:true},
-  base_corner:   {w:90, h:85, d:90, name:'Угловая', cat:'base', facade:1, shelves:1, corner:true},
-  wall_cabinet:  {w:60, h:72, d:32, name:'Навесной', cat:'wall', facade:2, shelves:2, wall:true},
-  wall_glass:    {w:60, h:72, d:32, name:'Витрина', cat:'wall', facade:2, shelves:2, wall:true, glass:true},
-  wardrobe:      {w:80, h:220, d:60, name:'Шкаф', cat:'wardrobe', facade:2, shelves:4},
-  wardrobe_2door:{w:120, h:240, d:60, name:'Шкаф 2-дв', cat:'wardrobe', facade:2, shelves:5},
-  shelf_unit:    {w:80, h:200, d:35, name:'Стеллаж', cat:'wardrobe', facade:0, shelves:5, open:true},
-  fridge:        {w:60, h:200, d:65, name:'Холодильник', cat:'appliance', facade:0, appliance:true},
-  stove:         {w:60, h:85, d:60, name:'Плита', cat:'appliance', facade:0, appliance:true},
-};
-
-// ═══════════════ THREE.JS KURULUM ═══════════════
-function initThree(){
-  const wrap = document.getElementById('canvas-wrap');
-  const W = wrap.clientWidth, H = wrap.clientHeight;
-
-  scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0e1a);
-  scene.fog = new THREE.Fog(0x0a0e1a, 8, 20);
-
-  camera = new THREE.PerspectiveCamera(50, W/H, 0.1, 100);
-  camera.position.set(4, 4, 5);
-  camera.lookAt(0, 1, 0);
-
-  renderer = new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
-  renderer.setSize(W, H);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  wrap.appendChild(renderer.domElement);
-
-  // Işıklar
-  const ambient = new THREE.AmbientLight(0xffffff, 0.6);
-  scene.add(ambient);
-  const dir = new THREE.DirectionalLight(0xffffff, 0.8);
-  dir.position.set(5, 10, 7);
-  dir.castShadow = true;
-  dir.shadow.camera.left = -8; dir.shadow.camera.right = 8;
-  dir.shadow.camera.top = 8; dir.shadow.camera.bottom = -8;
-  dir.shadow.mapSize.width = 2048; dir.shadow.mapSize.height = 2048;
-  scene.add(dir);
-  const fill = new THREE.DirectionalLight(0xaaccff, 0.3);
-  fill.position.set(-5, 5, -5);
-  scene.add(fill);
-
-  raycaster = new THREE.Raycaster();
-  mouse = new THREE.Vector2();
-
-  buildRoom();
-  setupControls();
-  animate();
-}
-
-// ═══════════════ ODA (zemin + duvarlar) ═══════════════
-let roomGroup = null;
-function buildRoom(){
-  if(roomGroup) scene.remove(roomGroup);
-  roomGroup = new THREE.Group();
-  const w = roomW * SCALE, d = roomD * SCALE;
-
-  // Zemin
-  const floorGeo = new THREE.PlaneGeometry(w, d);
-  const floorMat = new THREE.MeshStandardMaterial({color:0x2a3142, roughness:0.9});
-  const floor = new THREE.Mesh(floorGeo, floorMat);
-  floor.rotation.x = -Math.PI/2;
-  floor.receiveShadow = true;
-  roomGroup.add(floor);
-
-  // Izgara
-  const grid = new THREE.GridHelper(Math.max(w,d), Math.max(roomW,roomD)/20, 0x3d4a5c, 0x1e2838);
-  grid.position.y = 0.001;
-  roomGroup.add(grid);
-
-  // Arka duvar
-  const wallMat = new THREE.MeshStandardMaterial({color:0x222a3a, roughness:1, side:THREE.DoubleSide});
-  const backWall = new THREE.Mesh(new THREE.PlaneGeometry(w, 2.5), wallMat);
-  backWall.position.set(0, 1.25, -d/2);
-  backWall.receiveShadow = true;
-  roomGroup.add(backWall);
-
-  // Sol duvar
-  const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(d, 2.5), wallMat);
-  leftWall.rotation.y = Math.PI/2;
-  leftWall.position.set(-w/2, 1.25, 0);
-  leftWall.receiveShadow = true;
-  roomGroup.add(leftWall);
-
-  scene.add(roomGroup);
-}
-
-function updateRoom(){
-  roomW = parseInt(document.getElementById('roomW').value) || 400;
-  roomD = parseInt(document.getElementById('roomD').value) || 300;
-  buildRoom();
-}
-
-// ═══════════════ MODÜL OLUŞTURMA ═══════════════
-function makeModuleMesh(tpl, bodyColor, facadeColor){
-  const group = new THREE.Group();
-  const w = tpl.w*SCALE, h = tpl.h*SCALE, d = tpl.d*SCALE;
-  const bodyMat = new THREE.MeshStandardMaterial({color:bodyColor, roughness:0.7, metalness:0.05});
-  const facadeMat = new THREE.MeshStandardMaterial({color:facadeColor, roughness:0.4, metalness:0.1});
-
-  // Gövde (kasa)
-  const bodyGeo = new THREE.BoxGeometry(w, h, d);
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.castShadow = true; body.receiveShadow = true;
-  group.add(body);
-
-  // Kapı/фасад (öne yakın ince panel)
-  if(tpl.facade > 0 && !tpl.open){
-    const fThick = 0.018;
-    if(tpl.drawers){
-      // Çekmeceli — yatay bölmeler
-      const dh = h / tpl.drawers;
-      for(let i=0;i<tpl.drawers;i++){
-        const fGeo = new THREE.BoxGeometry(w*0.94, dh*0.9, fThick);
-        const f = new THREE.Mesh(fGeo, facadeMat);
-        f.position.set(0, -h/2 + dh*(i+0.5), d/2 + fThick/2);
-        f.castShadow = true;
-        group.add(f);
-        // Kulp
-        const handle = new THREE.Mesh(new THREE.BoxGeometry(w*0.3, 0.012, 0.02),
-          new THREE.MeshStandardMaterial({color:0x888888, metalness:0.8, roughness:0.3}));
-        handle.position.set(0, -h/2 + dh*(i+0.85), d/2 + 0.025);
-        group.add(handle);
-      }
-    } else {
-      // Kapılı
-      const doors = tpl.facade >= 2 ? 2 : 1;
-      const dw = w / doors;
-      for(let i=0;i<doors;i++){
-        const fGeo = new THREE.BoxGeometry(dw*0.94, h*0.96, fThick);
-        const fMat = tpl.glass ?
-          new THREE.MeshStandardMaterial({color:facadeColor, roughness:0.1, metalness:0.3, transparent:true, opacity:0.55}) :
-          facadeMat;
-        const f = new THREE.Mesh(fGeo, fMat);
-        f.position.set(-w/2 + dw*(i+0.5), 0, d/2 + fThick/2);
-        f.castShadow = true;
-        group.add(f);
-        // Kulp
-        const handle = new THREE.Mesh(new THREE.BoxGeometry(0.018, h*0.25, 0.02),
-          new THREE.MeshStandardMaterial({color:0x888888, metalness:0.8, roughness:0.3}));
-        const hx = doors===2 ? (i===0 ? dw*0.35 : -dw*0.35) : w*0.38;
-        handle.position.set(-w/2 + dw*(i+0.5) + hx, 0, d/2 + 0.025);
-        group.add(handle);
-      }
-    }
-  }
-
-  // Açık raf (stellaj)
-  if(tpl.open && tpl.shelves){
-    const sh = h / (tpl.shelves+1);
-    for(let i=1;i<=tpl.shelves;i++){
-      const shelfGeo = new THREE.BoxGeometry(w*0.96, 0.018, d*0.9);
-      const shelf = new THREE.Mesh(shelfGeo, bodyMat);
-      shelf.position.set(0, -h/2 + sh*i, 0);
-      shelf.castShadow = true;
-      group.add(shelf);
-    }
-  }
-
-  // Mojka (lavabo) işareti
-  if(tpl.sink){
-    const sinkGeo = new THREE.BoxGeometry(w*0.6, 0.04, d*0.5);
-    const sinkMat = new THREE.MeshStandardMaterial({color:0xc0c0c0, metalness:0.7, roughness:0.3});
-    const sink = new THREE.Mesh(sinkGeo, sinkMat);
-    sink.position.set(0, h/2 + 0.02, 0);
-    group.add(sink);
-  }
-
-  // Plita (ocak) işareti
-  if(tpl.type==='stove' || tpl.appliance && tpl.name==='Плита'){
-    const topGeo = new THREE.BoxGeometry(w*0.9, 0.03, d*0.9);
-    const topMat = new THREE.MeshStandardMaterial({color:0x1a1a1a, roughness:0.3, metalness:0.5});
-    const top = new THREE.Mesh(topGeo, topMat);
-    top.position.set(0, h/2 + 0.015, 0);
-    group.add(top);
-  }
-
-  return group;
-}
-
-function addModule(type){
-  const tpl = Object.assign({type}, TEMPLATES[type]);
-  const bodyColor = BODY_COLORS[0];
-  const facadeColor = FACADE_COLORS[0];
-  const mesh = makeModuleMesh(tpl, bodyColor, facadeColor);
-
-  // Yerleştirme: duvara yakın, boş bir yere
-  const isWall = tpl.cat === 'wall';
-  const yPos = isWall ? 1.5 : (tpl.h*SCALE)/2;
-  let xPos = (modules.filter(m=>m.cat===tpl.cat).length * (tpl.w*SCALE + 0.02)) - roomW*SCALE/2 + tpl.w*SCALE/2 + 0.1;
-  const zPos = -roomD*SCALE/2 + tpl.d*SCALE/2 + 0.02;
-
-  mesh.position.set(xPos, yPos, zPos);
-  scene.add(mesh);
-
-  const mod = {
-    mesh, type, ...tpl, bodyColor, facadeColor,
-    x: xPos, y: yPos, z: zPos,
-    rotation: 0
-  };
-  modules.push(mod);
-  selectModule(mod);
-  updateStats();
-  document.getElementById('emptyHint').style.display = 'none';
-}
-
-// ═══════════════ SEÇİM & ÖZELLİKLER ═══════════════
-function selectModule(mod){
-  selectedModule = mod;
-  // Önceki vurguyu kaldır
-  modules.forEach(m=>{
-    if(m.mesh.children[0]) m.mesh.children[0].material.emissive = new THREE.Color(0x000000);
-  });
-  // Yeni vurgu
-  if(mod && mod.mesh.children[0]){
-    mod.mesh.children[0].material.emissive = new THREE.Color(0x332211);
-  }
-  renderProps();
-}
-
-function renderProps(){
-  const panel = document.getElementById('propsPanel');
-  const content = document.getElementById('propsContent');
-  if(!selectedModule){ panel.classList.remove('open'); return; }
-  panel.classList.add('open');
-  const m = selectedModule;
-
-  let colorSection = '';
-  if(m.facade > 0 && !m.open && !m.appliance){
-    colorSection = `
-      <div class="prop-row">
-        <label>Цвет фасада</label>
-        <div class="color-row">
-          ${FACADE_COLORS.map(c=>`<div class="color-sw ${c===m.facadeColor?'active':''}" style="background:${c}" onclick="setFacadeColor('${c}')"></div>`).join('')}
-        </div>
-      </div>`;
-  }
-
-  content.innerHTML = `
-    <div class="prop-row">
-      <label>${m.name} (${m.cat})</label>
+<!-- New Project Modal -->
+<div class="modal" id="newProjectModal">
+  <div class="modal-content">
+    <div class="modal-title">Новый проект</div>
+    
+    <div class="form-group">
+      <label>Имя проекта</label>
+      <input type="text" id="projectName" placeholder="Например: Кухня Мария">
     </div>
-    <div class="prop-row">
-      <label>Ширина <span class="prop-val">${m.w} см</span></label>
-      <input type="range" min="30" max="200" value="${m.w}" oninput="setDim('w',this.value)">
+
+    <div class="form-group">
+      <label>Имя клиента</label>
+      <input type="text" id="customerName" placeholder="ФИО клиента">
     </div>
-    <div class="prop-row">
-      <label>Высота <span class="prop-val">${m.h} см</span></label>
-      <input type="range" min="30" max="250" value="${m.h}" oninput="setDim('h',this.value)">
+
+    <div class="form-group">
+      <label>Телефон клиента</label>
+      <input type="tel" id="customerPhone" placeholder="+7 (7XX) XXX-XX-XX">
     </div>
-    <div class="prop-row">
-      <label>Глубина <span class="prop-val">${m.d} см</span></label>
-      <input type="range" min="20" max="100" value="${m.d}" oninput="setDim('d',this.value)">
-    </div>
-    <div class="prop-row">
-      <label>Позиция X <span class="prop-val">${Math.round(m.x/SCALE)} см</span></label>
-      <input type="range" min="${-roomW/2}" max="${roomW/2}" value="${Math.round(m.x/SCALE)}" oninput="setPos('x',this.value)">
-    </div>
-    <div class="prop-row">
-      <label>Позиция Z <span class="prop-val">${Math.round(m.z/SCALE)} см</span></label>
-      <input type="range" min="${-roomD/2}" max="${roomD/2}" value="${Math.round(m.z/SCALE)}" oninput="setPos('z',this.value)">
-    </div>
-    <div class="prop-row">
-      <label>Поворот <span class="prop-val">${Math.round(m.rotation*180/Math.PI)}°</span></label>
-      <input type="range" min="0" max="360" step="90" value="${Math.round(m.rotation*180/Math.PI)}" oninput="setRot(this.value)">
-    </div>
-    <div class="prop-row">
-      <label>Цвет корпуса</label>
-      <div class="color-row">
-        ${BODY_COLORS.map(c=>`<div class="color-sw ${c===m.bodyColor?'active':''}" style="background:${c}" onclick="setBodyColor('${c}')"></div>`).join('')}
+
+    <div class="form-group">
+      <label>Выберите шаблон</label>
+      <div class="templates-grid" id="templatesGrid">
+        <!-- JS заполнит -->
       </div>
     </div>
-    ${colorSection}
-    <button class="del-btn" onclick="deleteModule()">🗑 Удалить модуль</button>
-  `;
+
+    <div class="form-group">
+      <label>Комната (см)</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <input type="number" id="roomWidth" placeholder="Ширина" value="400">
+        <input type="number" id="roomDepth" placeholder="Глубина" value="300">
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('newProjectModal')">Отмена</button>
+      <button class="btn-primary" onclick="createProject()">Создать</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// Supabase config (replace with your values)
+const SUPABASE_URL = 'https://fciofuexujtxxjlamxno.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjaW9mdWV4dWp0eHhqbGFteG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzA0OTkwNzcsImV4cCI6MjA0NjA3NTA3N30.NmT0G2aMwLzq-zELNc4BpYsQ-4Ii4zJQVPG_f0iG0vk';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const TEMPLATES = [
+  {id:'straight', name:'Прямая', icon:'📏', desc:'Однорядная кухня'},
+  {id:'l-shaped', name:'L-образная', icon:'⌐', desc:'Угловая кухня'},
+  {id:'u-shaped', name:'U-образная', icon:'⊔', desc:'П-образная кухня'},
+  {id:'wardrobe', name:'Гардероб', icon:'👔', desc:'Система шкафов'},
+];
+
+let selectedTemplate = 'straight';
+let projects = [];
+
+async function init(){
+  renderTemplates();
+  await loadProjects();
+  renderProjects();
+  console.log('✅ Alfa 3D Planner loaded');
 }
 
-function rebuildMesh(){
-  const m = selectedModule;
-  if(!m) return;
-  scene.remove(m.mesh);
-  m.mesh = makeModuleMesh(m, m.bodyColor, m.facadeColor);
-  m.mesh.position.set(m.x, m.y, m.z);
-  m.mesh.rotation.y = m.rotation;
-  if(m.mesh.children[0]) m.mesh.children[0].material.emissive = new THREE.Color(0x332211);
-  scene.add(m.mesh);
+function renderTemplates(){
+  const grid = document.getElementById('templatesGrid');
+  grid.innerHTML = TEMPLATES.map(t => `
+    <div class="template-btn ${t.id === selectedTemplate ? 'selected' : ''}" 
+         onclick="selectTemplate('${t.id}')">
+      <span class="template-icon">${t.icon}</span>
+      <span>${t.name}</span>
+    </div>
+  `).join('');
 }
 
-function setDim(axis, val){
-  const m = selectedModule; if(!m) return;
-  m[axis] = parseInt(val);
-  if(axis==='h' && m.cat!=='wall') m.y = (m.h*SCALE)/2; // alt dolap zemine otursun
-  rebuildMesh();
-  renderProps();
-  updateStats();
-}
-function setPos(axis, val){
-  const m = selectedModule; if(!m) return;
-  m[axis] = parseInt(val)*SCALE;
-  m.mesh.position[axis] = m[axis];
-  renderProps();
-}
-function setRot(deg){
-  const m = selectedModule; if(!m) return;
-  m.rotation = parseInt(deg)*Math.PI/180;
-  m.mesh.rotation.y = m.rotation;
-  renderProps();
-}
-function setBodyColor(c){
-  const m = selectedModule; if(!m) return;
-  m.bodyColor = c; rebuildMesh(); renderProps();
-}
-function setFacadeColor(c){
-  const m = selectedModule; if(!m) return;
-  m.facadeColor = c; rebuildMesh(); renderProps();
-}
-function deleteModule(){
-  const m = selectedModule; if(!m) return;
-  scene.remove(m.mesh);
-  modules = modules.filter(x=>x!==m);
-  selectedModule = null;
-  document.getElementById('propsPanel').classList.remove('open');
-  updateStats();
-  if(modules.length===0) document.getElementById('emptyHint').style.display = 'block';
+function selectTemplate(id){
+  selectedTemplate = id;
+  renderTemplates();
 }
 
-// ═══════════════ HESAPLAMA (sunta + фасад m²) ═══════════════
-function updateStats(){
-  let boardArea = 0;   // ЛДСП m² (gövde panelleri)
-  let facadeArea = 0;  // фасад m²
-  let edgeLen = 0;     // kromка metre
-
-  modules.forEach(m=>{
-    if(m.appliance) return; // teknik eşya sunta hesabına girmez
-    const w = m.w/100, h = m.h/100, d = m.d/100; // metre
-
-    // Gövde panelleri (ЛДСП 16mm): 2 yan + alt + üst
-    // Alt dolapta üst yok (столешница ayrı), üst dolapta var
-    const side = h * d;        // yan panel
-    const topBot = w * d;      // üst/alt panel
-    boardArea += side*2;       // 2 yan her zaman
-    if(m.cat==='wall' || m.cat==='wardrobe'){
-      boardArea += topBot*2;   // üst+alt (asma/gardırop)
-    } else {
-      boardArea += topBot;     // alt dolap: sadece alt (üstü столешница)
-    }
-    // Raflar (ЛДСП)
-    if(m.shelves) boardArea += (w*d) * m.shelves;
-    // Arka panel HDF/ДВП (ince, ayrı malzeme — sunta sayılmaz ama not edilir)
-
-    // Фасад
-    if(m.facade > 0 && !m.open){
-      facadeArea += w * h;
-    }
-
-    // Kromка: фасад çevresi + raf ön kenarları + gövde ön kenarları
-    if(m.facade > 0 && !m.open){
-      edgeLen += 2*(w+h); // фасад çevresi
-    }
-    if(m.shelves) edgeLen += w * m.shelves; // raf ön kenarı
-    edgeLen += h*2; // gövde ön dikey kenarlar (görünen)
-  });
-
-  document.getElementById('statModules').textContent = modules.filter(m=>!m.appliance).length;
-  document.getElementById('statBoard').textContent = boardArea.toFixed(2);
-  document.getElementById('statFacade').textContent = facadeArea.toFixed(2);
-  document.getElementById('statEdge').textContent = edgeLen.toFixed(1);
-}
-
-// ═══════════════ KAMERA KONTROLLERİ (orbit) ═══════════════
-let camAngle = {theta: 0.7, phi: 0.9, radius: 7};
-let camTarget = new THREE.Vector3(0, 1, 0);
-let isDragging = false, isPanning = false, lastX=0, lastY=0;
-
-function setupControls(){
-  const el = renderer.domElement;
-  el.addEventListener('mousedown', e=>{
-    if(e.button===0){
-      // Sol tık: seçim VEYA döndürme
-      const rect = el.getBoundingClientRect();
-      mouse.x = ((e.clientX-rect.left)/rect.width)*2-1;
-      mouse.y = -((e.clientY-rect.top)/rect.height)*2+1;
-      raycaster.setFromCamera(mouse, camera);
-      const meshes = modules.map(m=>m.mesh);
-      const hits = raycaster.intersectObjects(meshes, true);
-      if(hits.length){
-        // Modülü bul
-        let obj = hits[0].object;
-        while(obj.parent && !modules.find(m=>m.mesh===obj)) obj = obj.parent;
-        const mod = modules.find(m=>m.mesh===obj);
-        if(mod){ selectModule(mod); return; }
-      }
-      isDragging = true;
-    } else if(e.button===2){
-      isPanning = true;
-    }
-    lastX = e.clientX; lastY = e.clientY;
-  });
-  el.addEventListener('mousemove', e=>{
-    const dx = e.clientX-lastX, dy = e.clientY-lastY;
-    if(isDragging){
-      camAngle.theta -= dx*0.01;
-      camAngle.phi = Math.max(0.1, Math.min(Math.PI/2-0.05, camAngle.phi - dy*0.01));
-      updateCamera();
-    } else if(isPanning){
-      const panSpeed = 0.005 * camAngle.radius;
-      camTarget.x -= dx*panSpeed*Math.cos(camAngle.theta);
-      camTarget.z -= dx*panSpeed*Math.sin(camAngle.theta);
-      camTarget.y += dy*panSpeed;
-      camTarget.y = Math.max(0, camTarget.y);
-      updateCamera();
-    }
-    lastX = e.clientX; lastY = e.clientY;
-  });
-  window.addEventListener('mouseup', ()=>{ isDragging=false; isPanning=false; });
-  el.addEventListener('wheel', e=>{
-    e.preventDefault();
-    camAngle.radius = Math.max(2, Math.min(20, camAngle.radius + e.deltaY*0.005));
-    updateCamera();
-  }, {passive:false});
-  el.addEventListener('contextmenu', e=>e.preventDefault());
-
-  // Touch (mobil)
-  let touchMode = null, touchStart = null, pinchDist = 0;
-  el.addEventListener('touchstart', e=>{
-    if(e.touches.length===1){
-      touchMode='rotate'; lastX=e.touches[0].clientX; lastY=e.touches[0].clientY;
-      // seçim kontrolü
-      const rect = el.getBoundingClientRect();
-      mouse.x = ((e.touches[0].clientX-rect.left)/rect.width)*2-1;
-      mouse.y = -((e.touches[0].clientY-rect.top)/rect.height)*2+1;
-      raycaster.setFromCamera(mouse, camera);
-      const hits = raycaster.intersectObjects(modules.map(m=>m.mesh), true);
-      if(hits.length){
-        let obj = hits[0].object;
-        while(obj.parent && !modules.find(m=>m.mesh===obj)) obj = obj.parent;
-        const mod = modules.find(m=>m.mesh===obj);
-        if(mod) selectModule(mod);
-      }
-    } else if(e.touches.length===2){
-      touchMode='pinch';
-      pinchDist = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
-    }
-  }, {passive:false});
-  el.addEventListener('touchmove', e=>{
-    e.preventDefault();
-    if(touchMode==='rotate' && e.touches.length===1){
-      const dx=e.touches[0].clientX-lastX, dy=e.touches[0].clientY-lastY;
-      camAngle.theta -= dx*0.01;
-      camAngle.phi = Math.max(0.1, Math.min(Math.PI/2-0.05, camAngle.phi - dy*0.01));
-      updateCamera();
-      lastX=e.touches[0].clientX; lastY=e.touches[0].clientY;
-    } else if(touchMode==='pinch' && e.touches.length===2){
-      const d = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
-      camAngle.radius = Math.max(2, Math.min(20, camAngle.radius - (d-pinchDist)*0.02));
-      pinchDist = d;
-      updateCamera();
-    }
-  }, {passive:false});
-  el.addEventListener('touchend', ()=>{ touchMode=null; });
-
-  updateCamera();
-}
-
-function updateCamera(){
-  const {theta, phi, radius} = camAngle;
-  camera.position.x = camTarget.x + radius*Math.sin(phi)*Math.cos(theta);
-  camera.position.y = camTarget.y + radius*Math.cos(phi);
-  camera.position.z = camTarget.z + radius*Math.sin(phi)*Math.sin(theta);
-  camera.lookAt(camTarget);
-}
-
-function setView(type){
-  if(type==='top'){ camAngle={theta:Math.PI/2, phi:0.05, radius:8}; }
-  else if(type==='front'){ camAngle={theta:Math.PI/2, phi:Math.PI/2-0.05, radius:7}; }
-  else { camAngle={theta:0.7, phi:0.9, radius:7}; }
-  updateCamera();
-}
-function resetCam(){
-  camTarget.set(0,1,0);
-  camAngle={theta:0.7, phi:0.9, radius:7};
-  updateCamera();
-}
-
-// ═══════════════ RENDER (watermark'lı görsel) ═══════════════
-function takeRender(){
-  // Seçim vurgusunu geçici kaldır (temiz render)
-  modules.forEach(m=>{ if(m.mesh.children[0]) m.mesh.children[0].material.emissive=new THREE.Color(0x000000); });
-  renderer.render(scene, camera);
-
-  const canvas = renderer.domElement;
-  // Watermark ekle
-  const wmCanvas = document.createElement('canvas');
-  wmCanvas.width = canvas.width;
-  wmCanvas.height = canvas.height;
-  const ctx = wmCanvas.getContext('2d');
-  ctx.drawImage(canvas, 0, 0);
-
-  // BAIBESIK.KZ watermark — sağ alt + merkez şeffaf
-  const fs = Math.round(canvas.width/24);
-  ctx.font = `900 ${fs}px Segoe UI, sans-serif`;
-  ctx.textAlign = 'right';
-  ctx.textBaseline = 'bottom';
-  // Gölge
-  ctx.fillStyle = 'rgba(0,0,0,.5)';
-  ctx.fillText('BAIBESIK.KZ', canvas.width-18+2, canvas.height-16+2);
-  // Ana yazı
-  ctx.fillStyle = '#f97316';
-  ctx.fillText('BAIBESIK', canvas.width-18 - ctx.measureText('.KZ').width, canvas.height-16);
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText('.KZ', canvas.width-18, canvas.height-16);
-
-  // Merkez büyük şeffaf watermark
-  ctx.save();
-  ctx.globalAlpha = 0.08;
-  ctx.font = `900 ${Math.round(canvas.width/8)}px Segoe UI, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#ffffff';
-  ctx.translate(canvas.width/2, canvas.height/2);
-  ctx.rotate(-Math.PI/12);
-  ctx.fillText('BAIBESIK.KZ', 0, 0);
-  ctx.restore();
-
-  // Üst bilgi şeridi (proje özeti)
-  ctx.fillStyle = 'rgba(15,23,42,.85)';
-  ctx.fillRect(0, 0, canvas.width, Math.round(canvas.height/16));
-  ctx.font = `700 ${Math.round(canvas.width/45)}px Segoe UI, sans-serif`;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#fff';
-  const board = document.getElementById('statBoard').textContent;
-  const facade = document.getElementById('statFacade').textContent;
-  ctx.fillText(`Проект мебели · ЛДСП: ${board} м² · Фасады: ${facade} м² · Модулей: ${modules.filter(m=>!m.appliance).length}`,
-    16, Math.round(canvas.height/32));
-
-  const dataUrl = wmCanvas.toDataURL('image/png');
-  document.getElementById('renderImg').src = dataUrl;
-  document.getElementById('renderModal').classList.add('open');
-  window._lastRender = dataUrl;
-  // Vurguyu geri koy
-  if(selectedModule) selectModule(selectedModule);
-}
-
-function closeRender(){ document.getElementById('renderModal').classList.remove('open'); }
-function downloadRender(){
-  const a = document.createElement('a');
-  a.href = window._lastRender;
-  a.download = 'baibesik-proekt-' + Date.now() + '.png';
-  a.click();
-}
-
-// ═══════════════ DİĞER ═══════════════
-function clearAll(){
-  if(!modules.length || confirm('Удалить все модули?')){
-    modules.forEach(m=>scene.remove(m.mesh));
-    modules = [];
-    selectedModule = null;
-    document.getElementById('propsPanel').classList.remove('open');
-    document.getElementById('emptyHint').style.display = 'block';
-    updateStats();
+async function loadProjects(){
+  try{
+    const {data, error} = await supabase.from('alfa_3d_projects').select('*').order('created_at', {ascending:false});
+    if(error) throw error;
+    projects = data || [];
+  }catch(e){
+    console.error('Load error:', e);
+    projects = [];
   }
 }
 
-function sendToManager(){
-  if(!modules.length){ alert('Сначала добавьте модули в проект'); return; }
-  const board = document.getElementById('statBoard').textContent;
-  const facade = document.getElementById('statFacade').textContent;
-  const edge = document.getElementById('statEdge').textContent;
-  const count = modules.filter(m=>!m.appliance).length;
-  const txt = `*Baibesik.kz — Проект мебели*\n📦 Модулей: ${count}\n🪵 ЛДСП: ${board} м²\n🚪 Фасады: ${facade} м²\n📏 Кромка: ${edge} м\n\nДетали модулей:\n` +
-    modules.filter(m=>!m.appliance).map((m,i)=>`${i+1}. ${m.name} — ${m.w}×${m.h}×${m.d}см`).join('\n');
-  // WhatsApp'a gönder (manager numarası baibesik'ten alınacak)
-  const phone = '77772220003'; // manager
-  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(txt)}`, '_blank');
+function renderProjects(){
+  const grid = document.getElementById('projectsGrid');
+  const newCard = grid.innerHTML.split('</div>')[0] + '</div>';
+  
+  if(projects.length === 0){
+    grid.innerHTML = newCard + `
+      <div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--gray)">
+        <p>📭 Проектов нет. Создайте новый!</p>
+      </div>
+    `;
+    return;
+  }
+
+  grid.innerHTML = newCard + projects.map(p => `
+    <div class="project-card">
+      <div class="project-header">
+        <div class="project-name">${p.project_name}</div>
+        <div class="project-date">${new Date(p.created_at).toLocaleDateString('ru-RU')}</div>
+      </div>
+      <div class="project-customer">👤 ${p.customer_name || 'Нет имени'}</div>
+      <div class="project-stats">
+        <span>📦 ${p.stats?.modules || 0} модулей</span>
+        <span>🪵 ${p.stats?.board || 0}м²</span>
+      </div>
+      <div class="project-status ${p.status || 'draft'}">${getStatusText(p.status)}</div>
+      <div class="project-actions">
+        <button class="edit-btn" onclick="editProject('${p.id}')">Редактировать</button>
+        <button class="delete-btn" onclick="deleteProject('${p.id}')">🗑</button>
+      </div>
+    </div>
+  `).join('');
 }
 
-// Resize
-window.addEventListener('resize', ()=>{
-  const wrap = document.getElementById('canvas-wrap');
-  camera.aspect = wrap.clientWidth/wrap.clientHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(wrap.clientWidth, wrap.clientHeight);
-});
-
-function animate(){
-  requestAnimationFrame(animate);
-  renderer.render(scene, camera);
+function getStatusText(status){
+  const map = {draft:'Черновик', sent:'Отправлено', approved:'✓ Одобрено', rejected:'✗ Отклонено'};
+  return map[status] || 'Черновик';
 }
 
-// Başlat
-initThree();
-updateStats();
+function openNewProjectModal(){
+  document.getElementById('newProjectModal').classList.add('open');
+}
+
+function closeModal(id){
+  document.getElementById(id).classList.remove('open');
+}
+
+async function createProject(){
+  const name = document.getElementById('projectName').value.trim();
+  const customer = document.getElementById('customerName').value.trim();
+  const phone = document.getElementById('customerPhone').value.trim();
+  const roomW = parseInt(document.getElementById('roomWidth').value) || 400;
+  const roomD = parseInt(document.getElementById('roomDepth').value) || 300;
+
+  if(!name || !customer){
+    alert('Заполните имя проекта и клиента');
+    return;
+  }
+
+  const projectData = {
+    project_name: name,
+    customer_name: customer,
+    customer_phone: phone,
+    template: selectedTemplate,
+    room_width: roomW,
+    room_depth: roomD,
+    modules: [],
+    stats: {modules:0, board:0, facade:0, edge:0},
+    status: 'draft',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+
+  try{
+    const {data, error} = await supabase.from('alfa_3d_projects').insert([projectData]);
+    if(error) throw error;
+    
+    closeModal('newProjectModal');
+    document.getElementById('projectName').value = '';
+    document.getElementById('customerName').value = '';
+    document.getElementById('customerPhone').value = '';
+    
+    await loadProjects();
+    renderProjects();
+    
+    // Автоматически открыть редактор
+    if(data && data[0]) editProject(data[0].id);
+  }catch(e){
+    console.error('Create error:', e);
+    alert('Ошибка при создании проекта');
+  }
+}
+
+function editProject(projectId){
+  window.location.href = `editor.html?id=${projectId}`;
+}
+
+async function deleteProject(projectId){
+  if(!confirm('Удалить проект?')) return;
+  
+  try{
+    const {error} = await supabase.from('alfa_3d_projects').delete().eq('id', projectId);
+    if(error) throw error;
+    
+    await loadProjects();
+    renderProjects();
+  }catch(e){
+    console.error('Delete error:', e);
+    alert('Ошибка при удалении');
+  }
+}
+
+function openSettings(){
+  alert('⚙️ Параметры (скоро)');
+}
+
+function logout(){
+  alert('Выход (интегрировать с Baibesik auth)');
+}
+
+// Init on load
+init();
 </script>
+
 </body>
 </html>
