@@ -2,785 +2,663 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Alfa 3D Planner — Редактор</title>
-<script>
-window.addEventListener('error', function(e){
-  // Harici CDN'den gelen detaysız "Script error." mesajlarını yok say (genelde zararsız CORS)
-  if(!e.message || e.message === 'Script error.' || e.lineno === 0) return;
-  var box = document.getElementById('errBox');
-  if(!box){
-    box = document.createElement('div');
-    box.id = 'errBox';
-    box.style.cssText = 'position:fixed;top:54px;left:0;right:0;background:#dc2626;color:#fff;padding:10px;z-index:99999;font-family:monospace;font-size:12px;white-space:pre-wrap;word-break:break-all';
-    document.body.appendChild(box);
-  }
-  box.textContent = '❌ ' + e.message + ' :' + e.lineno;
-});
-</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --orange:#f97316; --orange-dark:#ea580c; --dark:#0f172a; --dark2:#1e293b;
-    --gray:#64748b; --light:#f1f5f9; --border:#e2e8f0; --green:#16a34a;
+    --dark3:#162033; --gray:#64748b; --light:#f1f5f9; --green:#16a34a;
+    --line:rgba(255,255,255,.08);
   }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Segoe UI',system-ui,sans-serif;background:#0a0e1a;color:#e2e8f0;overflow:hidden;height:100vh}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden}
+  body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#0a0e1a;color:#e2e8f0}
 
-  /* Топ бар */
-  .topbar{position:fixed;top:0;left:0;right:0;height:54px;background:var(--dark2);
-    display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:100;
-    box-shadow:0 2px 12px rgba(0,0,0,.4);border-bottom:1px solid rgba(255,255,255,.06)}
-  .topbar-left{display:flex;align-items:center;gap:12px}
-  .back-btn{background:none;border:none;color:#fff;cursor:pointer;font-size:18px;padding:8px}
-  .back-btn:hover{color:var(--orange)}
-  .topbar-title{font-weight:700;font-size:15px}
-  .topbar-actions{display:flex;gap:8px}
-  .tb-btn{padding:8px 12px;background:rgba(255,255,255,.08);border:none;border-radius:6px;color:#fff;
-    font-size:12px;font-weight:700;cursor:pointer;transition:.2s;display:flex;align-items:center;gap:6px}
-  .tb-btn:hover{background:rgba(255,255,255,.15)}
+  /* ── TOPBAR ── */
+  .topbar{position:fixed;top:0;left:0;right:0;height:52px;background:var(--dark2);
+    display:flex;align-items:center;justify-content:space-between;padding:0 10px;z-index:100;
+    border-bottom:1px solid var(--line)}
+  .tb-left{display:flex;align-items:center;gap:8px;min-width:0}
+  .tb-back{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:6px;flex:0 0 auto}
+  .tb-title{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tb-ver{font-size:9px;color:#334155;flex:0 0 auto}
+  .tb-actions{display:flex;gap:5px;flex:0 0 auto}
+  .tb-btn{padding:8px 10px;background:rgba(255,255,255,.07);border:none;border-radius:7px;color:#fff;
+    font-size:16px;cursor:pointer;transition:.15s;line-height:1}
+  .tb-btn:active{background:rgba(255,255,255,.2)}
   .tb-btn.primary{background:var(--orange)}
-  .tb-btn.primary:hover{background:var(--orange-dark)}
+  .tb-btn .lbl{font-size:12px;font-weight:700;margin-left:4px}
 
-  /* Сол сайдбар */
-  .sidebar{position:fixed;top:54px;left:0;bottom:0;width:260px;background:var(--dark2);
-    z-index:90;overflow-y:auto;padding:0;border-right:1px solid rgba(255,255,255,.06)}
-  .sidebar-search{position:sticky;top:0;background:var(--dark2);padding:12px;z-index:5;
-    border-bottom:1px solid rgba(255,255,255,.06)}
-  .sidebar-search input{width:100%;padding:8px 10px;background:#0f172a;border:1px solid rgba(255,255,255,.1);
-    border-radius:8px;color:#fff;font-size:12px;font-family:inherit}
-  .sidebar-search input::placeholder{color:var(--gray)}
+  /* ── CANVAS ── */
+  #canvas-wrap{position:fixed;top:52px;left:0;right:0;bottom:0;
+    background:radial-gradient(ellipse at 50% 30%,#1c2742 0%,#0a0e1a 75%)}
+  #canvas-wrap canvas{display:block;width:100%;height:100%;touch-action:none}
 
-  /* Accordion kategori */
-  .cat{border-bottom:1px solid rgba(255,255,255,.04)}
-  .cat-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;
-    transition:.2s;user-select:none}
-  .cat-head:hover{background:rgba(255,255,255,.03)}
-  .cat-head .cat-name{font-size:12px;font-weight:800;color:#e2e8f0;display:flex;align-items:center;gap:8px}
-  .cat-head .cat-name .cat-emoji{font-size:16px}
-  .cat-head .cat-count{font-size:10px;color:var(--gray);background:rgba(255,255,255,.06);
-    padding:2px 7px;border-radius:10px;font-weight:700}
-  .cat-head .cat-arrow{color:var(--gray);font-size:10px;transition:transform .25s;margin-left:6px}
-  .cat.open .cat-arrow{transform:rotate(90deg)}
-  .cat-body{max-height:0;overflow:hidden;transition:max-height .3s ease}
-  .cat.open .cat-body{max-height:2000px}
-  .module-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px 12px 14px}
-  .module-btn{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:8px;
-    padding:10px 6px;cursor:pointer;transition:.15s;text-align:center;color:#cbd5e1;font-size:10px;font-weight:700;
-    display:flex;flex-direction:column;align-items:center;gap:4px;line-height:1.2}
-  .module-btn:hover{background:var(--orange);color:#fff;transform:translateY(-2px);
-    box-shadow:0 4px 10px rgba(249,115,22,.25)}
-  .module-btn .ico{font-size:22px;display:block}
-  .module-btn .dims{font-size:8px;color:var(--gray);font-weight:600}
-  .module-btn:hover .dims{color:rgba(255,255,255,.8)}
-  .no-results{padding:30px 14px;text-align:center;color:var(--gray);font-size:12px}
+  /* görünüm küpleri */
+  .view-ctrl{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:5px;z-index:10}
+  .view-btn{width:34px;height:34px;background:rgba(30,41,59,.92);border:1px solid var(--line);
+    border-radius:7px;color:#fff;font-size:12px;font-weight:700;cursor:pointer}
+  .view-btn:active{background:var(--orange)}
 
-  /* Оң сайдбар - Properties */
-  .props{position:fixed;top:54px;right:0;bottom:0;width:280px;background:var(--dark2);
-    z-index:90;overflow-y:auto;padding:14px;border-left:1px solid rgba(255,255,255,.06);
-    transform:translateX(100%);transition:transform .3s}
-  .props.open{transform:translateX(0)}
-  .prop-section{margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.05)}
-  .prop-section:last-child{border-bottom:none}
-  .prop-row{margin-bottom:10px}
-  .prop-row label{font-size:11px;font-weight:700;color:var(--gray);display:block;margin-bottom:4px}
-  .prop-row input[type=number],.prop-row input[type=range]{width:100%;padding:6px;background:#0f172a;
-    border:1px solid rgba(255,255,255,.1);border-radius:4px;color:#fff;font-size:12px}
-  .color-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px}
-  .color-swatch{width:100%;aspect-ratio:1;border-radius:6px;cursor:pointer;border:2px solid transparent;
-    transition:.15s}
-  .color-swatch.active{border-color:#fff;transform:scale(1.15)}
-  .copy-btn, .del-btn{width:100%;padding:8px;border:none;border-radius:6px;font-weight:700;cursor:pointer;
-    margin-top:6px;transition:.2s;font-size:12px}
-  .copy-btn{background:var(--green);color:#fff}
-  .copy-btn:hover{background:rgba(22,163,74,.8)}
-  .del-btn{background:rgba(220,38,38,.3);color:#ef4444;border:1px solid rgba(220,38,38,.5)}
-  .del-btn:hover{background:rgba(220,38,38,.4)}
+  /* empty hint */
+  .empty-hint{position:absolute;top:46%;left:50%;transform:translate(-50%,-50%);text-align:center;
+    color:var(--gray);z-index:5;pointer-events:none;width:80%}
+  .empty-hint .big{font-size:42px;margin-bottom:10px;opacity:.4}
+  .empty-hint p{font-size:13px;line-height:1.5}
 
-  /* Canvas */
-  #canvas-wrap{position:fixed;top:54px;left:260px;right:280px;bottom:50px;
-    background:linear-gradient(180deg,#1a2236 0%,#0a0e1a 100%)}
-  #canvas-wrap canvas{display:block;width:100%;height:100%}
-  .view-controls{position:absolute;top:12px;right:12px;display:flex;gap:6px;z-index:10}
-  .view-btn{width:36px;height:36px;background:rgba(30,41,59,.9);border:1px solid rgba(255,255,255,.1);
-    border-radius:6px;color:#fff;cursor:pointer;font-size:12px;font-weight:700;transition:.2s}
-  .view-btn:hover{background:var(--orange)}
+  /* ── INFO BAR ── */
+  .infobar{position:fixed;left:0;right:0;bottom:0;height:46px;background:rgba(15,23,42,.95);
+    backdrop-filter:blur(8px);display:flex;align-items:center;gap:14px;padding:0 14px;z-index:80;
+    border-top:1px solid var(--line);font-size:11px;overflow-x:auto;white-space:nowrap}
+  .infobar b{color:var(--orange);margin-left:3px}
 
-  /* Информационная строка */
-  .infobar{position:fixed;bottom:0;left:260px;right:280px;height:50px;background:rgba(15,23,42,.92);
-    backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:space-between;
-    padding:0 16px;z-index:80;border-top:1px solid rgba(255,255,255,.06);font-size:12px}
-  .info-stats{display:flex;gap:16px}
-  .info-stat b{color:var(--orange);margin-left:4px}
+  /* ── BOTTOM TABS (paleta açma) ── */
+  .palette-tabs{position:fixed;left:0;right:0;bottom:46px;height:54px;background:var(--dark2);
+    display:flex;z-index:85;border-top:1px solid var(--line);overflow-x:auto}
+  .ptab{flex:1 0 auto;min-width:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2px;background:none;border:none;color:var(--gray);cursor:pointer;font-size:9px;font-weight:700;
+    padding:6px 8px;transition:.15s;border-top:2px solid transparent}
+  .ptab .pico{font-size:18px}
+  .ptab.active{color:var(--orange);border-top-color:var(--orange);background:var(--dark3)}
 
-  /* Empty hint */
-  .empty-hint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;
-    color:var(--gray);z-index:5;pointer-events:none}
-  .empty-hint .big{font-size:48px;margin-bottom:12px;opacity:.4}
-  .empty-hint p{font-size:13px;max-width:250px}
+  /* ── PALETTE DRAWER (modül listesi) ── */
+  .palette{position:fixed;left:0;right:0;bottom:100px;background:var(--dark2);z-index:84;
+    max-height:46vh;overflow-y:auto;transform:translateY(110%);transition:transform .28s ease;
+    border-top:2px solid var(--orange);border-radius:14px 14px 0 0;padding:10px 0 14px}
+  .palette.open{transform:translateY(0)}
+  .palette-head{display:flex;align-items:center;justify-content:space-between;padding:4px 16px 10px;
+    position:sticky;top:0;background:var(--dark2);z-index:2}
+  .palette-head h3{font-size:13px;font-weight:800}
+  .palette-close{background:none;border:none;color:var(--gray);font-size:22px;cursor:pointer;line-height:1}
+  .palette-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;padding:0 12px}
+  .pitem{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:9px;padding:10px 6px;
+    text-align:center;cursor:pointer;transition:.15s;display:flex;flex-direction:column;align-items:center;gap:3px}
+  .pitem:active{background:var(--orange);transform:scale(.95)}
+  .pitem .ico{font-size:24px}
+  .pitem .nm{font-size:10px;font-weight:700;line-height:1.15}
+  .pitem .dm{font-size:8px;color:var(--gray)}
 
-  /* Modal - BOM / PDF */
-  .modal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;display:none;
-    align-items:center;justify-content:center;padding:20px}
-  .modal.open{display:flex}
-  .modal-box{background:var(--dark2);border-radius:12px;padding:24px;max-width:600px;width:100%;
-    max-height:80vh;overflow-auto;border:1px solid rgba(255,255,255,.1)}
-  .modal-box h3{margin-bottom:16px;font-size:16px;font-weight:700}
-  .bom-table{width:100%;border-collapse:collapse;font-size:12px}
-  .bom-table th{text-align:left;padding:10px 8px;background:rgba(255,255,255,.05);font-weight:700;border-bottom:1px solid rgba(255,255,255,.1)}
-  .bom-table td{padding:8px;border-bottom:1px solid rgba(255,255,255,.05)}
-  .bom-table tr:hover{background:rgba(255,255,255,.02)}
-  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
-  .btn-close{padding:8px 12px;background:rgba(255,255,255,.08);border:none;border-radius:6px;
-    color:#fff;cursor:pointer;font-weight:700}
-  .btn-download{padding:8px 12px;background:var(--orange);border:none;border-radius:6px;
-    color:#fff;cursor:pointer;font-weight:700}
+  /* ── PROPS PANEL (seçili modül) ── */
+  .props{position:fixed;left:0;right:0;bottom:100px;background:var(--dark2);z-index:86;
+    max-height:50vh;overflow-y:auto;transform:translateY(120%);transition:transform .28s ease;
+    border-top:2px solid var(--green);border-radius:14px 14px 0 0;padding:14px 16px 20px}
+  .props.open{transform:translateY(0)}
+  .props-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .props-head h3{font-size:14px;font-weight:800}
+  .props-close{background:none;border:none;color:var(--gray);font-size:22px;cursor:pointer}
+  .prop-row{margin-bottom:14px}
+  .prop-row label{font-size:11px;font-weight:700;color:var(--gray);display:block;margin-bottom:6px}
+  .prop-row .val{color:var(--orange);float:right}
+  .prop-row input[type=range]{width:100%;accent-color:var(--orange)}
+  .prop-row input[type=number]{width:100%;padding:8px;background:#0f172a;border:1px solid var(--line);
+    border-radius:6px;color:#fff;font-size:13px}
+  .dim-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .color-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:4px}
+  .csw{width:100%;aspect-ratio:1;border-radius:7px;cursor:pointer;border:2px solid transparent}
+  .csw.active{border-color:#fff;transform:scale(1.12)}
+  .props-actions{display:flex;gap:8px;margin-top:8px}
+  .props-actions button{flex:1;padding:11px;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:12px}
+  .btn-dup{background:var(--green);color:#fff}
+  .btn-del{background:rgba(220,38,38,.25);color:#f87171;border:1px solid rgba(220,38,38,.4)}
 
-  @media(max-width:1024px){
-    .sidebar,.props{width:220px}
-    #canvas-wrap{left:220px;right:0}
-    .infobar{left:220px;right:0}
+  .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:83}
+  .overlay.open{display:block}
+
+  /* ── DESKTOP ── */
+  @media(min-width:900px){
+    .tb-btn .lbl{display:inline}
+    .palette-tabs{top:52px;bottom:auto;left:0;width:84px;height:auto;flex-direction:column;
+      border-top:none;border-right:1px solid var(--line);overflow-y:auto}
+    .ptab{flex:0 0 auto;border-top:none;border-left:2px solid transparent;padding:12px 4px}
+    .ptab.active{border-top-color:transparent;border-left-color:var(--orange)}
+    .palette{left:84px;width:280px;right:auto;top:52px;bottom:46px;max-height:none;
+      border-radius:0;border-top:none;border-right:2px solid var(--orange);
+      transform:translateX(-120%)}
+    .palette.open{transform:translateX(0)}
+    .palette-grid{grid-template-columns:1fr 1fr}
+    #canvas-wrap{left:84px}
+    .infobar{left:84px}
+    .props{left:auto;right:0;top:52px;bottom:46px;width:300px;max-height:none;
+      border-radius:0;border-top:none;border-left:2px solid var(--green);transform:translateX(120%)}
+    .props.open{transform:translateX(0)}
+    .empty-hint{left:calc(50% + 42px)}
   }
 
-  /* ── MOBİL (telefon) ── */
-  .mobile-fab{display:none}
-  @media(max-width:768px){
-    /* Sol panel: alttan açılan çekmece */
-    .sidebar{
-      width:100%;left:0;right:0;top:auto;bottom:0;height:62vh;
-      transform:translateY(100%);transition:transform .3s;
-      border-right:none;border-top:2px solid var(--orange);
-      border-radius:16px 16px 0 0;z-index:300
-    }
-    .sidebar.open{transform:translateY(0)}
-    /* tutamak çubuğu */
-    .sidebar::before{content:'';position:sticky;top:0;display:block;width:40px;height:4px;
-      background:rgba(255,255,255,.3);border-radius:2px;margin:8px auto 0}
-
-    /* Canvas tüm ekran */
-    #canvas-wrap{left:0;right:0;bottom:90px;top:54px}
-    .infobar{left:0;right:0;bottom:0;height:56px;font-size:11px;padding:0 10px}
-    .info-stats{gap:10px}
-
-    /* Sağ panel (properties) tam genişlik alttan */
-    .props{width:100%;left:0;right:0;border-left:none;
-      border-top:2px solid var(--orange);border-radius:16px 16px 0 0;
-      top:auto;bottom:0;height:55vh;transform:translateY(100%);z-index:310}
-    .props.open{transform:translateY(0)}
-
-    /* Topbar butonları küçült */
-    .topbar{padding:0 8px}
-    .tb-btn{padding:7px 8px;font-size:11px}
-    .tb-btn span.lbl{display:none}  /* sadece ikon kalsın */
-
-    /* Yüzen "Модули" butonu */
-    .mobile-fab{display:flex;position:fixed;bottom:72px;left:50%;transform:translateX(-50%);
-      z-index:250;background:var(--orange);color:#fff;border:none;border-radius:24px;
-      padding:12px 24px;font-size:14px;font-weight:800;box-shadow:0 4px 16px rgba(249,115,22,.5);
-      align-items:center;gap:8px;cursor:pointer}
-    .mobile-fab:active{transform:translateX(-50%) scale(.96)}
-
-    /* Çekmece kapatma overlay */
-    .drawer-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:290}
-    .drawer-overlay.open{display:block}
-
-    /* modül grid mobilde 3 sütun, daha kompakt */
-    .module-grid{grid-template-columns:1fr 1fr 1fr;gap:6px;padding:4px 10px 14px}
-  }
+  /* debug rozet */
+  #dbg{position:fixed;bottom:104px;left:8px;z-index:500;background:rgba(0,0,0,.75);color:#7dd3fc;
+    font-family:monospace;font-size:10px;padding:4px 8px;border-radius:6px;pointer-events:none;max-width:60vw}
+  #err{position:fixed;top:52px;left:0;right:0;background:#dc2626;color:#fff;padding:8px 12px;z-index:9999;
+    font-family:monospace;font-size:11px;display:none;white-space:pre-wrap;word-break:break-all}
 </style>
 </head>
 <body>
 
-<!-- Mobil: çekmece açma butonu + overlay -->
-<button class="mobile-fab" id="mobileFab">📦 Модули</button>
-<div class="drawer-overlay" id="drawerOverlay"></div>
+<div id="err"></div>
 
 <div class="topbar">
-  <div class="topbar-left">
-    <button class="back-btn" onclick="goBack()">← Назад</button>
-    <div class="topbar-title" id="projectTitle">Проект</div>
-    <span style="font-size:9px;color:#334155;margin-left:6px">v2.4</span>
+  <div class="tb-left">
+    <button class="tb-back" onclick="goBack()">←</button>
+    <span class="tb-title" id="projTitle">Проект</span>
+    <span class="tb-ver">v3.0</span>
   </div>
-  <div class="topbar-actions">
-    <button class="tb-btn" onclick="undo()">↶<span class="lbl"> Отмена</span></button>
-    <button class="tb-btn" onclick="redo()">↷<span class="lbl"> Повтор</span></button>
-    <button class="tb-btn" onclick="openBOMModal()">📋<span class="lbl"> BOM</span></button>
-    <button class="tb-btn" onclick="exportPDF()">📄<span class="lbl"> PDF</span></button>
-    <button class="tb-btn" onclick="takeRender()">📸<span class="lbl"> Рендер</span></button>
-    <button class="tb-btn primary" onclick="saveProject()">💾<span class="lbl"> Сохранить</span></button>
+  <div class="tb-actions">
+    <button class="tb-btn" onclick="undo()" title="Отмена">↶</button>
+    <button class="tb-btn" onclick="doRender()" title="Скриншот">📸</button>
+    <button class="tb-btn primary" onclick="saveProject()" title="Сохранить">💾<span class="lbl">Сохранить</span></button>
   </div>
 </div>
 
-<div class="sidebar">
-  <div class="sidebar-search">
-    <input type="text" id="moduleSearch" placeholder="🔍 Поиск модуля..." oninput="filterModules(this.value)">
+<!-- Kategori sekmeleri -->
+<div class="palette-tabs" id="paletteTabs"></div>
+
+<!-- Modül paleti çekmecesi -->
+<div class="palette" id="palette">
+  <div class="palette-head">
+    <h3 id="paletteTitle">Модули</h3>
+    <button class="palette-close" onclick="closePalette()">×</button>
   </div>
-  <div id="moduleCategories"></div>
+  <div class="palette-grid" id="paletteGrid"></div>
 </div>
 
-<div class="props" id="propsPanel">
-  <div class="sidebar-title">⚙️ Параметры</div>
-  <div id="propsContent"></div>
+<!-- Seçili modül paneli -->
+<div class="props" id="props">
+  <div class="props-head">
+    <h3 id="propsTitle">Модуль</h3>
+    <button class="props-close" onclick="closeProps()">×</button>
+  </div>
+  <div id="propsBody"></div>
 </div>
+
+<div class="overlay" id="overlay" onclick="closeAll()"></div>
 
 <div id="canvas-wrap">
-  <div class="view-controls">
-    <button class="view-btn" onclick="setView('persp')" title="3D">3D</button>
-    <button class="view-btn" onclick="setView('top')" title="Сверху">⬇</button>
-    <button class="view-btn" onclick="setView('front')" title="Спереди">▢</button>
-    <button class="view-btn" onclick="resetCam()" title="Сброс">⟲</button>
+  <div class="view-ctrl">
+    <button class="view-btn" onclick="setView('3d')">3D</button>
+    <button class="view-btn" onclick="setView('top')">⬇</button>
+    <button class="view-btn" onclick="setView('front')">▢</button>
+    <button class="view-btn" onclick="resetCam()">⟲</button>
   </div>
   <div class="empty-hint" id="emptyHint">
     <div class="big">🪑</div>
-    <p>Добавьте модули, чтобы начать проектирование</p>
+    <p>Выберите категорию снизу и добавьте модули</p>
   </div>
 </div>
 
 <div class="infobar">
-  <div class="info-stats">
-    <div>📦 Модулей: <b id="statModules">0</b></div>
-    <div>🪵 ЛДСП: <b id="statBoard">0</b>м²</div>
-    <div>🚪 Фасады: <b id="statFacade">0</b>м²</div>
-    <div>📏 Кромка: <b id="statEdge">0</b>м</div>
-  </div>
+  <div>📦 Модулей:<b id="stModules">0</b></div>
+  <div>🪵 ЛДСП:<b id="stBoard">0</b>м²</div>
+  <div>🚪 Фасады:<b id="stFacade">0</b>м²</div>
+  <div>📏 Кромка:<b id="stEdge">0</b>м</div>
 </div>
 
-<!-- BOM Modal -->
-<div class="modal" id="bomModal">
-  <div class="modal-box">
-    <h3>📋 Смета материалов (BOM)</h3>
-    <table class="bom-table" id="bomTable">
-      <thead>
-        <tr>
-          <th>Модуль</th>
-          <th>Кол-во</th>
-          <th>ЛДСП (м²)</th>
-          <th>Фасад (м²)</th>
-          <th>Кромка (м)</th>
-        </tr>
-      </thead>
-      <tbody id="bomBody"></tbody>
-    </table>
-    <div style="margin-top:16px;padding:12px;background:rgba(255,255,255,.05);border-radius:6px">
-      <div style="font-weight:700;margin-bottom:8px">🔴 Итого:</div>
-      <div>ЛДСП: <b id="bomBoardTotal">0</b>м²</div>
-      <div>Фасады: <b id="bomFacadeTotal">0</b>м²</div>
-      <div>Кромка: <b id="bomEdgeTotal">0</b>м</div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn-close" onclick="closeBOM()">Закрыть</button>
-      <button class="btn-download" onclick="downloadBOM()">📥 Скачать CSV</button>
-    </div>
-  </div>
-</div>
+<div id="dbg">init...</div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-// ═══════════════ ИНИЦИАЛИЗАЦИЯ ═══════════════
-const SUPABASE_URL = 'https://fciofuexujtxxjlamxno.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjaW9mdWV4dWp0eHhqbGFteG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNTYwOTcsImV4cCI6MjA5NTczMjA5N30.dDvtfabQ6xHmSd5NDntme2ggJpzNKLtXovFFDW2Kc80';
-let supabase = null;
-try {
-  if(window.supabase && window.supabase.createClient){
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  }
-} catch(e){ console.error('Supabase init:', e); }
+"use strict";
 
-// Get project ID from URL
-const urlParams = new URLSearchParams(window.location.search);
-const projectId = urlParams.get('id');
+// ════════ DEBUG / ERROR ════════
+function dbg(msg){ var d=document.getElementById('dbg'); if(d) d.textContent=msg; }
+function showErr(msg){
+  var e=document.getElementById('err'); if(!e) return;
+  e.style.display='block'; e.textContent='❌ '+msg;
+}
+window.addEventListener('error', function(ev){
+  if(!ev.message || ev.message==='Script error.' || ev.lineno===0) return;
+  showErr(ev.message+' :'+ev.lineno);
+});
 
-let scene, camera, renderer, modules = [], selectedModule = null, currentProject = null;
-let history = [], historyIndex = -1;
+// ════════ CONFIG ════════
+var SUPABASE_URL='https://fciofuexujtxxjlamxno.supabase.co';
+var SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZjaW9mdWV4dWp0eHhqbGFteG5vIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNTYwOTcsImV4cCI6MjA5NTczMjA5N30.dDvtfabQ6xHmSd5NDntme2ggJpzNKLtXovFFDW2Kc80';
+var sb=null;
+try{ if(window.supabase&&window.supabase.createClient) sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY); }catch(e){ console.error(e); }
 
-// ═══════════════ КАТАЛОГ МОДУЛЕЙ ═══════════════
-// w×h×d мм. Sonra baibesik katalogundan da çekebiliriz.
-const MODULE_CATALOG = [
-  {
-    id:'kitchen_base', emoji:'🍳', name:'Кухня — низ', open:true,
-    items:[
-      {type:'base_cabinet',  ico:'🗄️', name:'Тумба',        w:600, h:850, d:560},
-      {type:'base_2door',    ico:'🚪', name:'Тумба 2-дв.',   w:800, h:850, d:560},
-      {type:'base_drawer',   ico:'🗃️', name:'Ящики',         w:600, h:850, d:560},
-      {type:'base_drawer3',  ico:'📦', name:'3 ящика',       w:400, h:850, d:560},
-      {type:'base_sink',     ico:'🚰', name:'Мойка',         w:800, h:850, d:560},
-      {type:'base_corner',   ico:'📐', name:'Угловая',       w:900, h:850, d:900},
-      {type:'base_oven',     ico:'🔥', name:'Под духовку',   w:600, h:850, d:560},
-      {type:'base_open',     ico:'📭', name:'Открытая',      w:400, h:850, d:560}
-    ]
-  },
-  {
-    id:'kitchen_wall', emoji:'🪟', name:'Кухня — верх', open:false,
-    items:[
-      {type:'wall_cabinet',  ico:'🪟', name:'Навесной',      w:600, h:720, d:320},
-      {type:'wall_2door',    ico:'🚪', name:'Навесной 2-дв.',w:800, h:720, d:320},
-      {type:'wall_glass',    ico:'🪞', name:'Витрина',       w:600, h:720, d:320},
-      {type:'wall_up',       ico:'⬆️', name:'Подъёмный',     w:600, h:360, d:320},
-      {type:'wall_corner',   ico:'📐', name:'Угловой верх',  w:600, h:720, d:600},
-      {type:'wall_open',     ico:'📚', name:'Открытая полка',w:600, h:360, d:320},
-      {type:'wall_hood',     ico:'💨', name:'Под вытяжку',   w:600, h:360, d:320},
-      {type:'wall_micro',    ico:'📺', name:'Под СВЧ',       w:600, h:360, d:320}
-    ]
-  },
-  {
-    id:'wardrobe', emoji:'👔', name:'Гардероб / Шкаф', open:false,
-    items:[
-      {type:'wardrobe_1',    ico:'🚪', name:'Шкаф 1-дв.',    w:500, h:2200, d:600},
-      {type:'wardrobe_2',    ico:'🏛️', name:'Шкаф 2-дв.',    w:1000,h:2200, d:600},
-      {type:'wardrobe_3',    ico:'🏛️', name:'Шкаф 3-дв.',    w:1500,h:2200, d:600},
-      {type:'wardrobe_slide',ico:'↔️', name:'Купе',          w:1800,h:2400, d:650},
-      {type:'shelf_unit',    ico:'📚', name:'Стеллаж',       w:800, h:2000, d:400},
-      {type:'wardrobe_rail', ico:'👗', name:'Со штангой',    w:1000,h:2200, d:600},
-      {type:'wardrobe_drawer',ico:'🗃️',name:'С ящиками',     w:600, h:2200, d:600},
-      {type:'wardrobe_corner',ico:'📐',name:'Угловой',       w:1000,h:2200, d:1000},
-      {type:'antresol',      ico:'⬆️', name:'Антресоль',     w:1000,h:500,  d:600}
-    ]
-  },
-  {
-    id:'bedroom', emoji:'🛏️', name:'Спальня', open:false,
-    items:[
-      {type:'nightstand',    ico:'🛏️', name:'Тумба прикр.', w:450, h:450, d:400},
-      {type:'dresser',       ico:'🗄️', name:'Комод',         w:1000,h:850, d:450},
-      {type:'chest5',        ico:'🗃️', name:'Шифоньер',      w:600, h:1200,d:450},
-      {type:'bed_frame',     ico:'🛏️', name:'Каркас кровати',w:1600,h:400, d:2000},
-      {type:'headboard',     ico:'🔲', name:'Изголовье',     w:1600,h:1000,d:80},
-      {type:'vanity',        ico:'💄', name:'Туалетный стол',w:1000,h:750, d:450},
-      {type:'bed_drawer',    ico:'📦', name:'Ящик под кров.',w:800, h:200, d:600}
-    ]
-  },
-  {
-    id:'bathroom', emoji:'🛁', name:'Ванная', open:false,
-    items:[
-      {type:'bath_vanity',   ico:'🚰', name:'Тумба с раков.',w:600, h:550, d:450},
-      {type:'bath_mirror',   ico:'🪞', name:'Зеркало-шкаф',  w:600, h:700, d:150},
-      {type:'bath_tall',     ico:'🗄️', name:'Пенал',         w:350, h:1800,d:350},
-      {type:'bath_low',      ico:'📦', name:'Низкий шкаф',    w:600, h:350, d:300},
-      {type:'bath_corner',   ico:'📐', name:'Угловой',        w:400, h:1800,d:400},
-      {type:'bath_open',     ico:'📚', name:'Открытая полка', w:600, h:300, d:200}
-    ]
-  },
-  {
-    id:'living', emoji:'📺', name:'ТВ / Гостиная', open:false,
-    items:[
-      {type:'tv_stand',      ico:'📺', name:'ТВ-тумба',       w:1600,h:450, d:400},
-      {type:'tv_wall',       ico:'🖼️', name:'ТВ-стенка',      w:2400,h:2000,d:400},
-      {type:'bookshelf',     ico:'📚', name:'Книжный шкаф',   w:800, h:2000,d:300},
-      {type:'coffee_table',  ico:'☕', name:'Журн. столик',   w:1000,h:400, d:600},
-      {type:'sideboard',     ico:'🗄️', name:'Сервант',        w:1200,h:800, d:400},
-      {type:'display_glass', ico:'🪞', name:'Витрина',        w:600, h:2000,d:400},
-      {type:'shelf_wall',    ico:'📐', name:'Полка навесная', w:800, h:250, d:250}
-    ]
-  },
-  {
-    id:'office', emoji:'🏢', name:'Офис', open:false,
-    items:[
-      {type:'desk',          ico:'🖥️', name:'Стол письм.',    w:1200,h:750, d:600},
-      {type:'desk_corner',   ico:'📐', name:'Стол угловой',   w:1400,h:750, d:1400},
-      {type:'file_cabinet',  ico:'🗄️', name:'Шкаф докум.',    w:800, h:1850,d:400},
-      {type:'drawer_unit',   ico:'🗃️', name:'Тумба-картотека',w:430, h:600, d:500},
-      {type:'shelf_office',  ico:'📚', name:'Стеллаж офисный',w:800, h:1850,d:350},
-      {type:'reception',     ico:'🏛️', name:'Стойка ресепшн', w:2000,h:1100,d:700},
-      {type:'wall_shelf_o',  ico:'📐', name:'Полка',          w:1000,h:300, d:300}
-    ]
-  }
+var projectId=new URLSearchParams(location.search).get('id');
+
+// ════════ КАТАЛОГ (mm) ════════
+var CATALOG=[
+  {id:'base', tab:'Низ', ico:'🍳', items:[
+    {type:'base_door',  ico:'🗄️', name:'Тумба',       w:600,h:850,d:560},
+    {type:'base_2door', ico:'🚪', name:'Тумба 2дв',   w:800,h:850,d:560},
+    {type:'base_draw',  ico:'🗃️', name:'Ящики',       w:600,h:850,d:560},
+    {type:'base_sink',  ico:'🚰', name:'Мойка',       w:800,h:850,d:560},
+    {type:'base_corner',ico:'📐', name:'Угловая',     w:900,h:850,d:900},
+    {type:'base_oven',  ico:'🔥', name:'Под духовку', w:600,h:850,d:560}
+  ]},
+  {id:'wall', tab:'Верх', ico:'🪟', items:[
+    {type:'wall_door', ico:'🪟', name:'Навесной',  w:600,h:720,d:320},
+    {type:'wall_glass',ico:'🪞', name:'Витрина',   w:600,h:720,d:320},
+    {type:'wall_up',   ico:'⬆️', name:'Подъёмный', w:600,h:360,d:320},
+    {type:'wall_open', ico:'📚', name:'Полка',     w:600,h:360,d:320}
+  ]},
+  {id:'tall', tab:'Пеналы', ico:'🏛️', items:[
+    {type:'tall_oven', ico:'🔥', name:'Под духовку',w:600,h:2100,d:560},
+    {type:'tall_fridge',ico:'🧊',name:'Под холод.', w:600,h:2100,d:560},
+    {type:'tall_store',ico:'🗄️', name:'Кладовая',  w:600,h:2100,d:560}
+  ]},
+  {id:'wardrobe', tab:'Шкаф', ico:'👔', items:[
+    {type:'wr_1', ico:'🚪', name:'Шкаф 1дв', w:500, h:2200,d:600},
+    {type:'wr_2', ico:'🏛️', name:'Шкаф 2дв', w:1000,h:2200,d:600},
+    {type:'wr_slide',ico:'↔️',name:'Купе',    w:1800,h:2400,d:650},
+    {type:'wr_shelf',ico:'📚',name:'Стеллаж', w:800, h:2000,d:400}
+  ]},
+  {id:'tech', tab:'Техника', ico:'🔌', items:[
+    {type:'fridge',ico:'🧊', name:'Холод.',  w:600,h:1800,d:650},
+    {type:'stove', ico:'🔥', name:'Плита',   w:600,h:850, d:600},
+    {type:'hood',  ico:'💨', name:'Вытяжка', w:600,h:400, d:500},
+    {type:'dishw', ico:'🍽️', name:'Посудом.',w:600,h:850, d:600}
+  ]},
+  {id:'decor', tab:'Декор', ico:'🪴', items:[
+    {type:'table', ico:'🪑', name:'Стол',   w:1200,h:750,d:700},
+    {type:'chair', ico:'🪑', name:'Стул',   w:450, h:900,d:450},
+    {type:'island',ico:'🏝️', name:'Остров', w:1200,h:900,d:800}
+  ]}
 ];
 
-// ═══════════════ SIDEBAR RENDER (accordion) ═══════════════
-function renderCatalog(){
-  const wrap = document.getElementById('moduleCategories');
-  if(!wrap) return;
-  wrap.innerHTML = MODULE_CATALOG.map(cat => `
-    <div class="cat ${cat.open ? 'open' : ''}" data-cat="${cat.id}">
-      <div class="cat-head" onclick="toggleCat('${cat.id}')">
-        <div class="cat-name"><span class="cat-emoji">${cat.emoji}</span>${cat.name}</div>
-        <div style="display:flex;align-items:center">
-          <span class="cat-count">${cat.items.length}</span>
-          <span class="cat-arrow">▶</span>
-        </div>
-      </div>
-      <div class="cat-body">
-        <div class="module-grid">
-          ${cat.items.map(it => `
-            <div class="module-btn" data-name="${it.name.toLowerCase()}" onclick="addModule('${it.type}')">
-              <span class="ico">${it.ico}</span>
-              <span>${it.name}</span>
-              <span class="dims">${it.w}×${it.h}×${it.d}</span>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    </div>
-  `).join('');
-}
+var COLORS=[
+  {hex:'#ffffff',name:'Белый'},   {hex:'#e8e0d0',name:'Беж'},
+  {hex:'#c8915a',name:'Дуб'},     {hex:'#8b5a2b',name:'Орех'},
+  {hex:'#5a4632',name:'Венге'},   {hex:'#2b2b2b',name:'Чёрный'},
+  {hex:'#9aa6b2',name:'Серый'},   {hex:'#1e5945',name:'Зелёный'},
+  {hex:'#1e3a5f',name:'Синий'},   {hex:'#7a1f2b',name:'Бордо'},
+  {hex:'#d4af37',name:'Золото'},  {hex:'#f0f0f0',name:'Глянец'}
+];
 
-function toggleCat(id){
-  const cat = document.querySelector('.cat[data-cat="'+id+'"]');
-  if(cat) cat.classList.toggle('open');
-}
-
-function filterModules(query){
-  query = (query||'').toLowerCase().trim();
-  const cats = document.querySelectorAll('.cat');
-  cats.forEach(cat => {
-    let visibleCount = 0;
-    cat.querySelectorAll('.module-btn').forEach(btn => {
-      const match = !query || btn.getAttribute('data-name').includes(query);
-      btn.style.display = match ? '' : 'none';
-      if(match) visibleCount++;
-    });
-    // arama varsa eşleşen kategorileri aç, boşları gizle
-    if(query){
-      cat.style.display = visibleCount ? '' : 'none';
-      if(visibleCount) cat.classList.add('open');
-    } else {
-      cat.style.display = '';
-    }
-  });
-}
-
-// Modül kataloğundan tip bilgisi bul (boyut vs için)
-function getModuleInfo(type){
-  for(const cat of MODULE_CATALOG){
-    const found = cat.items.find(i => i.type === type);
-    if(found) return found;
-  }
+function findItem(type){
+  for(var c=0;c<CATALOG.length;c++)
+    for(var i=0;i<CATALOG[c].items.length;i++)
+      if(CATALOG[c].items[i].type===type) return CATALOG[c].items[i];
   return null;
 }
 
-// Three.js globals
-let camAngle = {theta:0.7, phi:0.9, radius:7};
-let camTarget = new THREE.Vector3(0, 1, 0);
+// ════════ STATE ════════
+var scene,camera,renderer,raycaster,pointer;
+var modules=[], selected=null, project=null;
+var hist=[], histIdx=-1;
+var camA={theta:0.8,phi:0.95,radius:6}, camT;
+var activeTab=null;
 
-async function init(){
-  // 1. Katalog ve mobil çekmece - EN ÖNEMLİSİ, başta ve korumalı
-  try { renderCatalog(); } catch(e){ console.error('renderCatalog:', e); }
-  try { setupMobileDrawer(); } catch(e){ console.error('setupMobileDrawer:', e); }
-
-  // 2. Three.js sahnesini başlat (proje olmasa da boş sahne görünsün)
-  try { initThree(); } catch(e){ console.error('initThree:', e); }
-
-  // 3. Proje yükle
-  if(projectId && supabase){
-    try {
-      await loadProject();
-      renderScene();
-    } catch(e){ console.error('loadProject:', e); }
-  }
-
-  try { renderProperties(); } catch(e){ console.error('renderProperties:', e); }
-  console.log('✅ Editor init tamam');
-}
-
-function setupMobileDrawer(){
-  const fab = document.getElementById('mobileFab');
-  const sidebar = document.querySelector('.sidebar');
-  const overlay = document.getElementById('drawerOverlay');
-  if(!fab || !sidebar || !overlay) return;
-
-  function openDrawer(){ sidebar.classList.add('open'); overlay.classList.add('open'); }
-  function closeDrawer(){ sidebar.classList.remove('open'); overlay.classList.remove('open'); }
-
-  fab.addEventListener('click', openDrawer);
-  overlay.addEventListener('click', closeDrawer);
-
-  sidebar.addEventListener('click', function(e){
-    if(e.target.closest('.module-btn') && window.innerWidth <= 768){
-      setTimeout(closeDrawer, 150);
-    }
-  });
-}
-
-async function loadProject(){
-  const {data, error} = await supabase.from('alfa_3d_projects').select('*').eq('id', projectId).single();
-  if(error || !data){
-    console.error('Проект не загружен:', error);
-    return;
-  }
-  currentProject = data;
-  const titleEl = document.getElementById('projectTitle');
-  if(titleEl) titleEl.textContent = data.project_name || 'Проект';
-  modules = data.modules || [];
-  updateStats();
-}
-
+// ════════ THREE INIT ════════
 function initThree(){
-  if(scene) return;  // zaten kuruldu, tekrar kurma
-  if(typeof THREE === 'undefined'){ console.error('THREE yüklenmedi'); return; }
-  const wrap = document.getElementById('canvas-wrap');
-  if(!wrap) return;
-  scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0e1a);
-  
-  const cw = wrap.clientWidth || window.innerWidth;
-  const ch = wrap.clientHeight || (window.innerHeight - 144);
-  camera = new THREE.PerspectiveCamera(75, cw/ch, 0.1, 1000);
-  renderer = new THREE.WebGLRenderer({antialias:true});
-  renderer.setSize(cw, ch);
-  renderer.shadowMap.enabled = true;
+  if(scene) return true;
+  if(typeof THREE==='undefined'){ showErr('THREE не загрузился'); return false; }
+  var wrap=document.getElementById('canvas-wrap');
+  if(!wrap) return false;
+  var W=wrap.clientWidth||window.innerWidth, H=wrap.clientHeight||window.innerHeight;
+
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x0a0e1a);
+  camera=new THREE.PerspectiveCamera(60,W/H,0.05,100);
+  camT=new THREE.Vector3(0,0.8,0);
+
+  renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setSize(W,H);
+  renderer.shadowMap.enabled=true;
   wrap.appendChild(renderer.domElement);
 
-  // Освещение
-  const light1 = new THREE.DirectionalLight(0xffffff, 0.8);
-  light1.position.set(5, 5, 5);
-  light1.castShadow = true;
-  scene.add(light1);
+  scene.add(new THREE.AmbientLight(0xffffff,0.65));
+  var dl=new THREE.DirectionalLight(0xffffff,0.85);
+  dl.position.set(4,8,5); dl.castShadow=true; scene.add(dl);
+  var dl2=new THREE.DirectionalLight(0xffffff,0.3);
+  dl2.position.set(-5,3,-4); scene.add(dl2);
 
-  const light2 = new THREE.AmbientLight(0xffffff, 0.5);
-  scene.add(light2);
+  // zemin
+  var floor=new THREE.Mesh(
+    new THREE.PlaneGeometry(20,20),
+    new THREE.MeshStandardMaterial({color:0x1a2236,roughness:1})
+  );
+  floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; floor.userData.helper=true;
+  scene.add(floor);
+  var grid=new THREE.GridHelper(20,40,0x33415a,0x1e2a40);
+  grid.userData.helper=true; scene.add(grid);
 
-  // Сетка
-  const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
-  scene.add(gridHelper);
+  raycaster=new THREE.Raycaster();
+  pointer=new THREE.Vector2();
 
-  updateCamera();
-  setupControls();
+  updateCam();
+  setupControls(wrap);
   animate();
-
-  window.addEventListener('resize', () => {
-    if(!camera || !renderer || !wrap) return;
-    const w = wrap.clientWidth || window.innerWidth;
-    const h = wrap.clientHeight || window.innerHeight;
-    camera.aspect = w/h;
-    camera.updateProjectionMatrix();
-    renderer.setSize(w, h);
-  });
+  window.addEventListener('resize',onResize);
+  return true;
 }
 
-function setupControls(){
-  const el = renderer.domElement;
-  let lastX, lastY;
-  
-  el.addEventListener('mousedown', e => {
-    if(e.button === 0) { // LMB - rotate
-      lastX = e.clientX;
-      lastY = e.clientY;
-    } else if(e.button === 2) { // RMB - pan
-      lastX = e.clientX;
-      lastY = e.clientY;
-    }
-  }, false);
+function onResize(){
+  if(!renderer||!camera) return;
+  var wrap=document.getElementById('canvas-wrap');
+  var W=wrap.clientWidth||window.innerWidth, H=wrap.clientHeight||window.innerHeight;
+  camera.aspect=W/H; camera.updateProjectionMatrix(); renderer.setSize(W,H);
+}
 
-  el.addEventListener('mousemove', e => {
-    if(e.buttons & 1) { // Left button
-      const dx = e.clientX - lastX;
-      const dy = e.clientY - lastY;
-      camAngle.theta -= dx * 0.01;
-      camAngle.phi = Math.max(0.1, Math.min(Math.PI/2 - 0.05, camAngle.phi - dy * 0.01));
-      updateCamera();
-      lastX = e.clientX;
-      lastY = e.clientY;
-    }
-  }, false);
+function updateCam(){
+  if(!camera) return;
+  var s=camA;
+  camera.position.x=camT.x+s.radius*Math.sin(s.phi)*Math.cos(s.theta);
+  camera.position.y=camT.y+s.radius*Math.cos(s.phi);
+  camera.position.z=camT.z+s.radius*Math.sin(s.phi)*Math.sin(s.theta);
+  camera.lookAt(camT);
+}
 
-  el.addEventListener('wheel', e => {
+function setView(t){
+  if(t==='top') camA={theta:Math.PI/2,phi:0.05,radius:7};
+  else if(t==='front') camA={theta:Math.PI/2,phi:Math.PI/2-0.05,radius:6};
+  else camA={theta:0.8,phi:0.95,radius:6};
+  updateCam();
+}
+function resetCam(){ camT.set(0,0.8,0); setView('3d'); }
+
+function setupControls(el){
+  var lx,ly,mode=null,pdist=0;
+  el.addEventListener('mousedown',function(e){ mode=(e.button===2?'pan':'rot'); lx=e.clientX; ly=e.clientY; });
+  window.addEventListener('mouseup',function(){ mode=null; });
+  el.addEventListener('mousemove',function(e){
+    if(!mode) return;
+    var dx=e.clientX-lx, dy=e.clientY-ly; lx=e.clientX; ly=e.clientY;
+    if(mode==='rot'){ camA.theta-=dx*0.01; camA.phi=Math.max(0.1,Math.min(Math.PI/2-0.02,camA.phi-dy*0.01)); }
+    else { camT.x-=dx*0.01; camT.y+=dy*0.01; }
+    updateCam();
+  });
+  el.addEventListener('wheel',function(e){ e.preventDefault(); camA.radius=Math.max(1.5,Math.min(20,camA.radius+e.deltaY*0.01)); updateCam(); },{passive:false});
+  el.addEventListener('contextmenu',function(e){ e.preventDefault(); });
+  // tıkla = seç
+  el.addEventListener('click',function(e){ pickAt(e.clientX,e.clientY,el); });
+
+  // touch
+  el.addEventListener('touchstart',function(e){
+    if(e.touches.length===1){ mode='rot'; lx=e.touches[0].clientX; ly=e.touches[0].clientY; }
+    else if(e.touches.length===2){ mode='pinch'; pdist=tdist(e); }
+  },{passive:false});
+  el.addEventListener('touchmove',function(e){
     e.preventDefault();
-    camAngle.radius = Math.max(2, Math.min(20, camAngle.radius + e.deltaY * 0.01));
-    updateCamera();
-  }, {passive:false});
-
-  el.addEventListener('contextmenu', e => e.preventDefault());
-}
-
-function updateCamera(){
-  const {theta, phi, radius} = camAngle;
-  camera.position.x = camTarget.x + radius * Math.sin(phi) * Math.cos(theta);
-  camera.position.y = camTarget.y + radius * Math.cos(phi);
-  camera.position.z = camTarget.z + radius * Math.sin(phi) * Math.sin(theta);
-  camera.lookAt(camTarget);
-}
-
-function setView(type){
-  if(type === 'top') camAngle = {theta:Math.PI/2, phi:0.05, radius:8};
-  else if(type === 'front') camAngle = {theta:Math.PI/2, phi:Math.PI/2 - 0.05, radius:7};
-  else camAngle = {theta:0.7, phi:0.9, radius:7};
-  updateCamera();
-}
-
-function resetCam(){
-  camTarget.set(0, 1, 0);
-  camAngle = {theta:0.7, phi:0.9, radius:7};
-  updateCamera();
-}
-
-function addModule(type){
-  const info = getModuleInfo(type);
-  // katalog mm cinsinden, sahnede cm kullanıyoruz (boyut/10)
-  const w = info ? info.w/10 : 60;
-  const h = info ? info.h/10 : 80;
-  const d = info ? info.d/10 : 60;
-  const name = info ? info.name : type.replace(/_/g, ' ');
-
-  // yeni modülü öncekinin yanına koy (üst üste binmesin)
-  let offsetX = 0;
-  modules.forEach(m => { offsetX += (m.w||60); });
-
-  const module = {
-    id: Date.now().toString() + Math.floor(Math.random()*1000),
-    type: type,
-    name: name,
-    w: w, h: h, d: d,
-    x: offsetX, y: 0, z: 0,
-    color: 0xc8915a,
-    material: 'wood'
-  };
-
-  modules.push(module);
-
-  // Three.js sahnesi hazır değilse şimdi kur (garanti)
-  if(!scene){
-    try { initThree(); } catch(e){ console.error('initThree (addModule):', e); }
-  }
-
-  try { addToHistory(); } catch(e){ console.error(e); }
-  try { renderScene(); } catch(e){ console.error('renderScene:', e); }
-  try { updateStats(); } catch(e){ console.error(e); }
-}
-
-function renderScene(){
-  if(!scene){ return; }  // Three.js hazır değilse çık
-  // Clear old meshes
-  scene.children = scene.children.filter(o => !(o.userData && o.userData.isModule));
-
-  modules.forEach(m => {
-    const geo = new THREE.BoxGeometry(m.w/100, m.h/100, m.d/100);
-    const mat = new THREE.MeshStandardMaterial({color: m.color, roughness:0.7, metalness:0.05});
-    const mesh = new THREE.Mesh(geo, mat);
-    // y: kutu merkezini yüksekliğin yarısına koy ki tabanı zemine değsin
-    mesh.position.set(m.x/100, (m.h/2)/100, m.z/100);
-    mesh.userData.isModule = true;
-    mesh.userData.moduleId = m.id;
-    mesh.castShadow = true;
-
-    // kenar çizgisi (daha okunaklı)
-    const edges = new THREE.LineSegments(
-      new THREE.EdgesGeometry(geo),
-      new THREE.LineBasicMaterial({color: 0x000000, transparent:true, opacity:0.25})
-    );
-    mesh.add(edges);
-
-    scene.add(mesh);
+    if(mode==='rot'&&e.touches.length===1){
+      var dx=e.touches[0].clientX-lx, dy=e.touches[0].clientY-ly; lx=e.touches[0].clientX; ly=e.touches[0].clientY;
+      camA.theta-=dx*0.01; camA.phi=Math.max(0.1,Math.min(Math.PI/2-0.02,camA.phi-dy*0.01)); updateCam();
+    } else if(mode==='pinch'&&e.touches.length===2){
+      var d=tdist(e); camA.radius=Math.max(1.5,Math.min(20,camA.radius-(d-pdist)*0.02)); pdist=d; updateCam();
+    }
+  },{passive:false});
+  el.addEventListener('touchend',function(e){
+    if(mode==='rot'&&e.changedTouches.length===1){
+      // kısa dokunuş = seçim
+      pickAt(e.changedTouches[0].clientX,e.changedTouches[0].clientY,el);
+    }
+    mode=null;
   });
-
-  document.getElementById('emptyHint').style.display = modules.length ? 'none' : 'block';
 }
+function tdist(e){ return Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY); }
 
-function updateStats(){
-  const count = modules.length;
-  const board = (count * 0.5).toFixed(2);
-  const facade = (count * 0.3).toFixed(2);
-  const edge = (count * 2.5).toFixed(1);
-
-  const sm = document.getElementById('statModules'); if(sm) sm.textContent = count;
-  const sb2 = document.getElementById('statBoard'); if(sb2) sb2.textContent = board;
-  const sf = document.getElementById('statFacade'); if(sf) sf.textContent = facade;
-  const se = document.getElementById('statEdge'); if(se) se.textContent = edge;
-}
-
-function renderProperties(){
-  const el = document.getElementById('propsContent');
-  if(!el) return;
-  el.innerHTML = '<div style="font-size:12px;color:var(--gray)">' +
-    (modules.length ? 'Выберите модуль на сцене' : 'Модулей нет') + '</div>';
-}
-
-function openBOMModal(){
-  const body = modules.map((m, i) => `
-    <tr>
-      <td>${m.name}</td>
-      <td>1</td>
-      <td>0.5</td>
-      <td>0.3</td>
-      <td>2.5</td>
-    </tr>
-  `).join('');
-
-  document.getElementById('bomBody').innerHTML = body;
-  document.getElementById('bomBoardTotal').textContent = (modules.length * 0.5).toFixed(2);
-  document.getElementById('bomFacadeTotal').textContent = (modules.length * 0.3).toFixed(2);
-  document.getElementById('bomEdgeTotal').textContent = (modules.length * 2.5).toFixed(1);
-  document.getElementById('bomModal').classList.add('open');
-}
-
-function closeBOM(){
-  document.getElementById('bomModal').classList.remove('open');
-}
-
-function downloadBOM(){
-  const csv = 'Модуль,Кол-во,ЛДСП (м²),Фасад (м²),Кромка (м)\n' +
-    modules.map(m => `${m.name},1,0.5,0.3,2.5`).join('\n');
-  
-  const a = document.createElement('a');
-  a.href = 'data:text/csv,' + encodeURIComponent(csv);
-  a.download = 'bom-' + currentProject.project_name + '.csv';
-  a.click();
-}
-
-function exportPDF(){
-  alert('PDF экспорт (скоро) — пока скачайте BOM и рендер');
-}
-
-function takeRender(){
-  renderer.render(scene, camera);
-  const url = renderer.domElement.toDataURL('image/png');
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'render-' + currentProject.project_name + '.png';
-  a.click();
-}
-
-async function saveProject(){
-  currentProject.modules = modules;
-  currentProject.updated_at = new Date().toISOString();
-
-  const {error} = await supabase.from('alfa_3d_projects').update(currentProject).eq('id', projectId);
-  if(error){
-    console.error('Save error:', error);
-    alert('Ошибка при сохранении');
-  } else {
-    alert('✓ Проект сохранен');
+function pickAt(cx,cy,el){
+  if(!raycaster||!camera) return;
+  var r=el.getBoundingClientRect();
+  pointer.x=((cx-r.left)/r.width)*2-1;
+  pointer.y=-((cy-r.top)/r.height)*2+1;
+  raycaster.setFromCamera(pointer,camera);
+  var meshes=modules.map(function(m){return m.mesh;}).filter(Boolean);
+  var hits=raycaster.intersectObjects(meshes,true);
+  if(hits.length){
+    var o=hits[0].object; while(o.parent&&!o.userData.modId) o=o.parent;
+    var mod=modules.find(function(m){return m.id===o.userData.modId;});
+    if(mod) selectModule(mod);
   }
-}
-
-function addToHistory(){
-  history = history.slice(0, historyIndex + 1);
-  history.push(JSON.parse(JSON.stringify(modules)));
-  historyIndex++;
-}
-
-function undo(){
-  if(historyIndex > 0){
-    historyIndex--;
-    modules = JSON.parse(JSON.stringify(history[historyIndex]));
-    renderScene();
-    updateStats();
-  }
-}
-
-function redo(){
-  if(historyIndex < history.length - 1){
-    historyIndex++;
-    modules = JSON.parse(JSON.stringify(history[historyIndex]));
-    renderScene();
-    updateStats();
-  }
-}
-
-function goBack(){
-  window.location.href = 'index.html';
 }
 
 function animate(){
   requestAnimationFrame(animate);
-  if(renderer && scene && camera) renderer.render(scene, camera);
+  if(renderer&&scene&&camera) renderer.render(scene,camera);
 }
 
-// Init - DOM hazır olunca
-if(document.readyState === 'loading'){
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
+// ════════ MODULES ════════
+function addModule(type){
+  dbg('addModule: '+type);
+  if(!initThree()){ showErr('3D не готов'); return; }
+  var info=findItem(type)||{w:600,h:850,d:560,name:type};
+  var w=info.w/1000, h=info.h/1000, d=info.d/1000; // mm→m
+
+  // yan yana diz
+  var offX=0; modules.forEach(function(m){ offX+=m.w; });
+  offX -= modules.reduce(function(a,m){return a+m.w;},0)/2; // ortala
+
+  var mod={
+    id:'m'+Date.now()+Math.floor(Math.random()*1000),
+    type:type, name:info.name, w:w, h:h, d:d,
+    x:offX+w/2, z:0, color:'#c8915a', mesh:null
+  };
+  buildMesh(mod);
+  modules.push(mod);
+  pushHist();
+  updateStats();
+  layoutRow();
+  selectModule(mod);
+  closePalette();
+  dbg('OK: '+modules.length+' модулей');
 }
+
+function buildMesh(mod){
+  var geo=new THREE.BoxGeometry(mod.w,mod.h,mod.d);
+  var mat=new THREE.MeshStandardMaterial({color:mod.color,roughness:0.6,metalness:0.05});
+  var mesh=new THREE.Mesh(geo,mat);
+  mesh.castShadow=true;
+  mesh.userData.modId=mod.id;
+  // kenar
+  var edg=new THREE.LineSegments(new THREE.EdgesGeometry(geo),
+    new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:0.2}));
+  mesh.add(edg);
+  mesh.position.set(mod.x, mod.h/2, mod.z);
+  scene.add(mesh);
+  mod.mesh=mesh;
+}
+
+function layoutRow(){
+  // alt+üst dolapları sıralı diz
+  var x=-modules.reduce(function(a,m){return a+m.w;},0)/2;
+  modules.forEach(function(m){
+    m.x=x+m.w/2;
+    var y=m.h/2;
+    if(m.type.indexOf('wall')===0) y=1.45+m.h/2; // üst dolaplar yukarıda
+    if(m.mesh) m.mesh.position.set(m.x,y,m.z);
+    x+=m.w;
+  });
+}
+
+function selectModule(mod){
+  selected=mod;
+  // vurgula
+  modules.forEach(function(m){
+    if(m.mesh) m.mesh.material.emissive=new THREE.Color(m===mod?0x553300:0x000000);
+  });
+  renderProps();
+  openProps();
+}
+
+function deleteSelected(){
+  if(!selected) return;
+  if(selected.mesh) scene.remove(selected.mesh);
+  modules=modules.filter(function(m){return m!==selected;});
+  selected=null;
+  closeProps();
+  pushHist(); updateStats(); layoutRow();
+}
+
+function dupSelected(){
+  if(!selected) return;
+  var s=selected;
+  addModule(s.type);
+  if(selected){ selected.color=s.color; selected.mesh.material.color.set(s.color); }
+}
+
+function updateStats(){
+  var n=modules.length;
+  var board=0,facade=0,edge=0;
+  modules.forEach(function(m){
+    // kaba hesap: gövde alanı + cephe
+    board += (2*m.h*m.d + 2*m.w*m.d + m.w*m.h)*1.0;
+    facade += m.w*m.h;
+    edge += (m.w+m.h)*2;
+  });
+  setTxt('stModules',n);
+  setTxt('stBoard',board.toFixed(2));
+  setTxt('stFacade',facade.toFixed(2));
+  setTxt('stEdge',edge.toFixed(1));
+  var hint=document.getElementById('emptyHint');
+  if(hint) hint.style.display=n?'none':'block';
+}
+function setTxt(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; }
+
+// ════════ PALETTE UI ════════
+function renderTabs(){
+  var wrap=document.getElementById('paletteTabs'); if(!wrap) return;
+  wrap.innerHTML=CATALOG.map(function(c){
+    return '<button class="ptab" data-tab="'+c.id+'" onclick="openPalette(\''+c.id+'\')">'+
+      '<span class="pico">'+c.ico+'</span><span>'+c.tab+'</span></button>';
+  }).join('');
+}
+
+function openPalette(tabId){
+  activeTab=tabId;
+  var cat=CATALOG.find(function(c){return c.id===tabId;});
+  if(!cat) return;
+  document.getElementById('paletteTitle').textContent=cat.tab;
+  document.getElementById('paletteGrid').innerHTML=cat.items.map(function(it){
+    return '<div class="pitem" onclick="addModule(\''+it.type+'\')">'+
+      '<span class="ico">'+it.ico+'</span>'+
+      '<span class="nm">'+it.name+'</span>'+
+      '<span class="dm">'+it.w+'×'+it.h+'</span></div>';
+  }).join('');
+  document.querySelectorAll('.ptab').forEach(function(t){
+    t.classList.toggle('active', t.getAttribute('data-tab')===tabId);
+  });
+  document.getElementById('palette').classList.add('open');
+  document.getElementById('props').classList.remove('open');
+  if(window.innerWidth<900) document.getElementById('overlay').classList.add('open');
+}
+function closePalette(){
+  document.getElementById('palette').classList.remove('open');
+  document.querySelectorAll('.ptab').forEach(function(t){t.classList.remove('active');});
+  if(!document.getElementById('props').classList.contains('open'))
+    document.getElementById('overlay').classList.remove('open');
+}
+
+// ════════ PROPS UI ════════
+function renderProps(){
+  if(!selected) return;
+  var m=selected;
+  document.getElementById('propsTitle').textContent=m.name;
+  var body=document.getElementById('propsBody');
+  body.innerHTML=
+    '<div class="prop-row"><label>Ширина <span class="val">'+Math.round(m.w*1000)+' мм</span></label>'+
+      '<input type="range" min="200" max="2400" step="10" value="'+Math.round(m.w*1000)+'" oninput="setDim(\'w\',this.value)"></div>'+
+    '<div class="prop-row"><label>Высота <span class="val">'+Math.round(m.h*1000)+' мм</span></label>'+
+      '<input type="range" min="200" max="2400" step="10" value="'+Math.round(m.h*1000)+'" oninput="setDim(\'h\',this.value)"></div>'+
+    '<div class="prop-row"><label>Глубина <span class="val">'+Math.round(m.d*1000)+' мм</span></label>'+
+      '<input type="range" min="200" max="900" step="10" value="'+Math.round(m.d*1000)+'" oninput="setDim(\'d\',this.value)"></div>'+
+    '<div class="prop-row"><label>Цвет</label><div class="color-grid">'+
+      COLORS.map(function(c){ return '<div class="csw'+(c.hex===m.color?' active':'')+'" style="background:'+c.hex+'" onclick="setColor(\''+c.hex+'\')"></div>'; }).join('')+
+    '</div></div>'+
+    '<div class="props-actions">'+
+      '<button class="btn-dup" onclick="dupSelected()">📋 Копия</button>'+
+      '<button class="btn-del" onclick="deleteSelected()">🗑 Удалить</button>'+
+    '</div>';
+}
+
+function setDim(axis,val){
+  if(!selected) return;
+  var m=selected, mm=parseInt(val)/1000;
+  m[axis]=mm;
+  // mesh yeniden kur
+  if(m.mesh){ scene.remove(m.mesh); }
+  buildMesh(m);
+  layoutRow(); updateStats(); renderProps();
+}
+function setColor(hex){
+  if(!selected) return;
+  selected.color=hex;
+  if(selected.mesh) selected.mesh.material.color.set(hex);
+  renderProps();
+}
+
+function openProps(){
+  document.getElementById('props').classList.add('open');
+  document.getElementById('palette').classList.remove('open');
+  if(window.innerWidth<900) document.getElementById('overlay').classList.add('open');
+}
+function closeProps(){
+  document.getElementById('props').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+  modules.forEach(function(m){ if(m.mesh) m.mesh.material.emissive=new THREE.Color(0x000000); });
+  selected=null;
+}
+function closeAll(){ closePalette(); closeProps(); }
+
+// ════════ HISTORY ════════
+function snapshot(){
+  return modules.map(function(m){ return {id:m.id,type:m.type,name:m.name,w:m.w,h:m.h,d:m.d,x:m.x,z:m.z,color:m.color}; });
+}
+function pushHist(){ hist=hist.slice(0,histIdx+1); hist.push(snapshot()); histIdx++; }
+function undo(){
+  if(histIdx<=0) return;
+  histIdx--;
+  restore(hist[histIdx]);
+}
+function restore(snap){
+  modules.forEach(function(m){ if(m.mesh) scene.remove(m.mesh); });
+  modules=snap.map(function(s){ var m=Object.assign({},s,{mesh:null}); buildMesh(m); return m; });
+  selected=null; closeProps(); updateStats(); layoutRow();
+}
+
+// ════════ SAVE / RENDER ════════
+function saveProject(){
+  if(!sb||!project){ alert('Нет связи с базой'); return; }
+  project.modules=snapshot();
+  project.stats={modules:modules.length,
+    board:parseFloat(document.getElementById('stBoard').textContent),
+    facade:parseFloat(document.getElementById('stFacade').textContent),
+    edge:parseFloat(document.getElementById('stEdge').textContent)};
+  project.updated_at=new Date().toISOString();
+  sb.from('alfa_3d_projects').update({modules:project.modules,stats:project.stats,updated_at:project.updated_at})
+    .eq('id',projectId).then(function(res){
+      if(res.error){ alert('Ошибка: '+res.error.message); }
+      else { dbg('💾 сохранено'); var b=document.querySelector('.tb-btn.primary'); if(b){b.textContent='✓';setTimeout(function(){b.innerHTML='💾<span class="lbl">Сохранить</span>';},1200);} }
+    });
+}
+
+function doRender(){
+  if(!renderer) return;
+  modules.forEach(function(m){ if(m.mesh) m.mesh.material.emissive=new THREE.Color(0x000000); });
+  renderer.render(scene,camera);
+  var url=renderer.domElement.toDataURL('image/png');
+  var a=document.createElement('a'); a.href=url;
+  a.download='alfa-'+(project?project.project_name:'proekt')+'.png'; a.click();
+  if(selected) selectModule(selected);
+}
+
+function goBack(){ location.href='index.html'; }
+
+// ════════ LOAD ════════
+function loadProject(){
+  if(!sb||!projectId){ dbg('demo (нет id)'); return Promise.resolve(); }
+  return sb.from('alfa_3d_projects').select('*').eq('id',projectId).single().then(function(res){
+    if(res.error||!res.data){ dbg('проект не найден'); return; }
+    project=res.data;
+    setTxt('projTitle',project.project_name||'Проект');
+    if(project.modules&&project.modules.length){
+      restore(project.modules);
+    }
+    dbg('загружен: '+project.project_name);
+  });
+}
+
+// ════════ INIT ════════
+function init(){
+  try{ renderTabs(); }catch(e){ showErr('renderTabs: '+e.message); }
+  try{ initThree(); }catch(e){ showErr('initThree: '+e.message); }
+  loadProject().then(function(){ updateStats(); }).catch(function(e){ console.error(e); });
+  dbg('готов · нажми категорию снизу');
+}
+
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
+else init();
 </script>
-
 </body>
 </html>
