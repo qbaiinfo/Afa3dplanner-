@@ -154,7 +154,7 @@
   <div class="tb-left">
     <button class="tb-back" onclick="goBack()">←</button>
     <span class="tb-title" id="projTitle">Проект</span>
-    <span class="tb-ver">v5.0</span>
+    <span class="tb-ver">v5.1</span>
   </div>
   <div class="tb-actions">
     <button class="tb-btn" onclick="toggleList()" title="Список">📑</button>
@@ -340,6 +340,55 @@ var COLORS=[
   {hex:'#1e3a5f',name:'Синий'},   {hex:'#7a1f2b',name:'Бордо'},
   {hex:'#d4af37',name:'Золото'},  {hex:'#f0f0f0',name:'Глянец'}
 ];
+
+// ── FASAD MALZEMELERİ (her birinin kendi dekorları) ──
+// finish: mat / gloss / wood  → 3D görünümü etkiler
+var FACADE_MATERIALS=[
+  {
+    id:'mdf_paint', name:'МДФ Краска', finish:'mat',
+    decors:[
+      {hex:'#ffffff',name:'Белый'},{hex:'#f2efe9',name:'Сливочный'},
+      {hex:'#9aa6b2',name:'Серый'},{hex:'#3a4149',name:'Антрацит'},
+      {hex:'#1e3a5f',name:'Синий'},{hex:'#1e5945',name:'Зелёный'},
+      {hex:'#7a1f2b',name:'Бордо'},{hex:'#2b2b2b',name:'Чёрный'}
+    ]
+  },
+  {
+    id:'mdf_pvc', name:'МДФ ПВХ', finish:'gloss',
+    decors:[
+      {hex:'#ffffff',name:'Белый глянец'},{hex:'#f5f0e6',name:'Ваниль'},
+      {hex:'#c8915a',name:'Дуб ПВХ'},{hex:'#8b5a2b',name:'Орех ПВХ'},
+      {hex:'#b0b8c0',name:'Металлик'},{hex:'#2b2b2b',name:'Чёрный глянец'},
+      {hex:'#7a1f2b',name:'Бордо глянец'},{hex:'#1e3a5f',name:'Синий глянец'}
+    ]
+  },
+  {
+    id:'sunta', name:'Сунта (ЛДСП)', finish:'wood',
+    decors:[
+      {hex:'#d8c4a0',name:'Дуб сонома'},{hex:'#c8915a',name:'Дуб'},
+      {hex:'#8b5a2b',name:'Орех'},{hex:'#5a4632',name:'Венге'},
+      {hex:'#e8e0d0',name:'Беж'},{hex:'#9aa6b2',name:'Серый'}
+    ]
+  },
+  {
+    id:'egger', name:'Egger', finish:'wood',
+    decors:[
+      {hex:'#d6c3a3',name:'H1145 Дуб'},{hex:'#b89968',name:'H3303 Дуб'},
+      {hex:'#7d6a4f',name:'H1137 Дуб тёмн'},{hex:'#9c7a52',name:'H3734 Орех'},
+      {hex:'#4a4038',name:'H1199 Венге'},{hex:'#e4ddd0',name:'W1000 Белый'},
+      {hex:'#8a8d8f',name:'U763 Серый'},{hex:'#2e3033',name:'U999 Чёрный'}
+    ]
+  },
+  {
+    id:'krospan', name:'Krospan', finish:'wood',
+    decors:[
+      {hex:'#d4bb91',name:'Дуб золотой'},{hex:'#c0a070',name:'Дуб натур'},
+      {hex:'#8b6840',name:'Орех'},{hex:'#52443a',name:'Венге'},
+      {hex:'#ffffff',name:'Белый'},{hex:'#9aa6b2',name:'Серый камень'}
+    ]
+  }
+];
+function getFacadeMat(id){ return FACADE_MATERIALS.find(function(f){return f.id===id;})||FACADE_MATERIALS[0]; }
 
 function findItem(type){
   for(var c=0;c<CATALOG.length;c++)
@@ -1212,12 +1261,14 @@ function renderProps(){
         }).join('')+
       '</div>'+
     '</div>'+
-    '<div class="prop-row"><label>Цвет фасада</label><div class="color-grid">'+
-      COLORS.map(function(c){ return '<div class="csw'+(c.hex===m.color?' active':'')+'" style="background:'+c.hex+'" onclick="setColor(\''+c.hex+'\')"></div>'; }).join('')+
+    '<div class="prop-row"><label>Материал фасада</label><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'+
+      FACADE_MATERIALS.map(function(fm){ return '<button onclick="setFacadeMat(\''+fm.id+'\')" style="padding:9px 6px;border-radius:8px;border:1px solid '+((m.facadeMat||'mdf_paint')===fm.id?'var(--orange)':'var(--line)')+';background:'+((m.facadeMat||'mdf_paint')===fm.id?'#fff7ed':'var(--panel2)')+';font-size:11px;font-weight:700;color:var(--ink);cursor:pointer">'+fm.name+'</button>'; }).join('')+
     '</div></div>'+
-    '<div class="prop-row"><label>Поверхность</label><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">'+
-      [{id:'mat',name:'Мат'},{id:'gloss',name:'Глянец'},{id:'wood',name:'Дерево'}].map(function(f){ return '<button onclick="setFinish(\''+f.id+'\')" style="padding:8px 4px;border-radius:8px;border:1px solid '+((m.finish||'mat')===f.id?'var(--orange)':'var(--line)')+';background:'+((m.finish||'mat')===f.id?'#fff7ed':'var(--panel2)')+';font-size:10px;font-weight:700;color:var(--ink);cursor:pointer">'+f.name+'</button>'; }).join('')+
-    '</div></div>'+
+    '<div class="prop-row"><label>Декор / цвет</label><div class="color-grid">'+
+      getFacadeMat(m.facadeMat||'mdf_paint').decors.map(function(c){ return '<div class="csw'+(c.hex===m.color?' active':'')+'" style="background:'+c.hex+'" title="'+c.name+'" onclick="setColor(\''+c.hex+'\')"></div>'; }).join('')+
+    '</div>'+
+    '<div style="font-size:11px;color:var(--gray2);margin-top:6px;text-align:center">'+(decorName(m))+'</div>'+
+    '</div>'+
     '<div class="prop-row"><label>Ручка</label><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">'+
       handles.map(function(h){ return '<button onclick="setHandle(\''+h.id+'\')" style="padding:8px 4px;border-radius:8px;border:1px solid '+((m.handle||'skoba')===h.id?'var(--orange)':'var(--line)')+';background:'+((m.handle||'skoba')===h.id?'#fff7ed':'var(--panel2)')+';font-size:10px;font-weight:700;color:var(--ink);cursor:pointer">'+h.name+'</button>'; }).join('')+
     '</div></div>';
@@ -1418,6 +1469,23 @@ function setFinish(f){
   selected.finish=f;
   rebuildSelected();
 }
+// fasad malzemesi seç - finish'i de malzemeye göre ayarla, dekoru ilk renge çek
+function setFacadeMat(id){
+  if(!selected) return;
+  var fm=getFacadeMat(id);
+  selected.facadeMat=id;
+  selected.finish=fm.finish;
+  // mevcut renk bu malzemenin dekorlarında yoksa ilkine çek
+  var has=fm.decors.some(function(d){return d.hex===selected.color;});
+  if(!has) selected.color=fm.decors[0].hex;
+  rebuildSelected();
+}
+// seçili dekorun adı
+function decorName(m){
+  var fm=getFacadeMat(m.facadeMat||'mdf_paint');
+  var d=fm.decors.find(function(x){return x.hex===m.color;});
+  return fm.name+(d?' · '+d.name:'');
+}
 
 function openProps(){
   if(!selected) return;
@@ -1480,7 +1548,7 @@ function selectFromList(i){
 // ════════ HISTORY ════════
 function snapshot(){
   return modules.map(function(m){ return {id:m.id,type:m.type,name:m.name,w:m.w,h:m.h,d:m.d,x:m.x,z:m.z,color:m.color,handle:m.handle,hideFront:m.hideFront,rot:m.rot,_manual:m._manual,
-    fRail:m.fRail,drawers:m.drawers,fHinge:m.fHinge,fLift:m.fLift,fCargo:m.fCargo,finish:m.finish,legs:m.legs}; });
+    fRail:m.fRail,drawers:m.drawers,fHinge:m.fHinge,fLift:m.fLift,fCargo:m.fCargo,finish:m.finish,legs:m.legs,facadeMat:m.facadeMat}; });
 }
 function pushHist(){ hist=hist.slice(0,histIdx+1); hist.push(snapshot()); histIdx++; }
 function undo(){
