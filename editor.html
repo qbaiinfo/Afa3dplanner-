@@ -154,7 +154,7 @@
   <div class="tb-left">
     <button class="tb-back" onclick="goBack()">←</button>
     <span class="tb-title" id="projTitle">Проект</span>
-    <span class="tb-ver">v5.8</span>
+    <span class="tb-ver">v5.9</span>
   </div>
   <div class="tb-actions">
     <button class="tb-btn" onclick="toggleList()" title="Список">📑</button>
@@ -1050,6 +1050,42 @@ function buildMesh(mod){
       new THREE.LineBasicMaterial({color:0x1e293b,transparent:true,opacity:0.5})
     );
     g.add(wire);
+
+    // ── MONTAJ NOKTALARI (vida/menteşe/ray) ──
+    var isDrawerM = mod.type.indexOf('draw')>=0;
+    var isWallM = mod.type.indexOf('wall')===0;
+    // menteşe (mavi) - kapaklı dolaplarda, sol ve sağ kenarda
+    if(!isDrawerM){
+      var hingeMat=new THREE.MeshBasicMaterial({color:0x2563eb});
+      var nHinge = h>1.2?4:(h>0.7?3:2); // yüksekliğe göre menteşe sayısı
+      var dbl = w>0.55;
+      var sides = dbl ? [-w/2+0.02, w/2-0.02] : [w/2-0.02];
+      sides.forEach(function(sx){
+        for(var i=0;i<nHinge;i++){
+          var hy=-h/2+0.08 + i*((h-0.16)/(nHinge-1||1));
+          var hinge=new THREE.Mesh(new THREE.SphereGeometry(0.016,8,8),hingeMat);
+          hinge.position.set(sx, hy, d/2-0.03); g.add(hinge);
+        }
+      });
+    } else {
+      // çekmece rayları (yeşil) - yanlarda
+      var railMat=new THREE.MeshBasicMaterial({color:0x16a34a});
+      var nd=mod.drawers||3;
+      for(var di=0;di<nd;di++){
+        var dy=-h/2+(h/nd)*(di+0.5);
+        [-w/2+0.02, w/2-0.02].forEach(function(sx){
+          var rp=new THREE.Mesh(new THREE.SphereGeometry(0.014,8,8),railMat);
+          rp.position.set(sx,dy,0); g.add(rp);
+        });
+      }
+    }
+    // gövde montaj vidaları (gri) - 4 köşe + orta
+    var screwMat=new THREE.MeshBasicMaterial({color:0x64748b});
+    var corners=[[-w/2+0.03,h/2-0.03],[w/2-0.03,h/2-0.03],[-w/2+0.03,-h/2+0.03],[w/2-0.03,-h/2+0.03]];
+    corners.forEach(function(c){
+      var sc=new THREE.Mesh(new THREE.SphereGeometry(0.01,6,6),screwMat);
+      sc.position.set(c[0],c[1],-d/2+0.02); g.add(sc);
+    });
   }
 
   g.position.set(mod.x, mod.h/2, mod.z);
@@ -1778,6 +1814,13 @@ function generatePDF(){
     return '<tr><td>'+p.mod+'</td><td>'+p.part+'</td><td>'+p.w+'</td><td>'+p.h+'</td><td>'+p.qty+'</td><td>'+p.edge+'</td></tr>';
   }).join('');
 
+  // montaj talimatı satırları
+  var montage=computeMontage();
+  var montRows=montage.map(function(mm){
+    return '<tr><td colspan="2" style="background:#fafaf8;font-weight:700">'+mm.mod+'</td></tr>'+
+      mm.items.map(function(it){ return '<tr><td style="padding-left:18px">'+it.part+'</td><td style="text-align:right;font-weight:700">'+it.qty+' шт</td></tr>'; }).join('');
+  }).join('');
+
   var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+pname+'</title>'+
     '<style>'+
     '@page{margin:14mm}'+
@@ -1813,6 +1856,10 @@ function generatePDF(){
     '</div>'+
     '<h2>Деталировка (распил)</h2>'+
     '<table><thead><tr><th>Модуль</th><th>Деталь</th><th>Ш</th><th>В</th><th>Кол</th><th>Кромка</th></tr></thead><tbody>'+detRows+'</tbody></table>'+
+    '<div style="page-break-before:always"></div>'+
+    '<h2>🔧 Инструкция по сборке (фурнитура)</h2>'+
+    '<p style="font-size:11px;color:#64748b;margin-bottom:8px">Синие точки на 3D — петли · зелёные — направляющие ящиков · серые — конфирматы корпуса</p>'+
+    '<table><thead><tr><th>Деталь / крепёж</th><th style="text-align:right">Кол-во</th></tr></thead><tbody>'+montRows+'</tbody></table>'+
     '<div class="foot">Создано в Alfa 3D Planner · baibesik.kz · '+today+'</div>'+
     '</body></html>';
 
@@ -1974,6 +2021,48 @@ function downloadDrawing(){
 }
 
 // ════════ KADEME 5: ДЕТАЛИРОВКА (kesim listesi) ════════
+// montaj talimatı (vida/menteşe/ray sayıları)
+function computeMontage(){
+  var list=[];
+  modules.forEach(function(m,idx){
+    var tag='М'+(idx+1)+' '+m.name;
+    var isDrawer=m.type.indexOf('draw')>=0;
+    var isWall=m.type.indexOf('wall')===0;
+    var dbl=m.w>0.55;
+    var items=[];
+    // gövde montaj vidaları (konfirmat)
+    items.push({part:'Конфирмат (корпус)', qty:8});
+    // arka panel vidaları
+    items.push({part:'Гвозди/скобы (задняя стенка)', qty:12});
+    if(isDrawer){
+      var nd=m.drawers||3;
+      var railName=m.fRail==='tandem'?'Tandembox':(m.fRail==='metabox'?'Метабокс':'Роликовые');
+      items.push({part:'Направляющие '+railName+' (пара)', qty:nd});
+      items.push({part:'Ручка', qty:nd});
+    } else if(!m.type.indexOf('open')>=0){
+      var nHinge=m.h>1.2?4:(m.h>0.7?3:2);
+      var hingeType=m.fHinge==='soft'?'с доводчиком':'обычные';
+      var doorCount=dbl?2:1;
+      items.push({part:'Петли '+hingeType, qty:nHinge*doorCount});
+      items.push({part:'Ручка', qty:doorCount});
+    }
+    // plastik ayaklar (alt dolap)
+    if(!isWall && (m.legs===undefined||m.legs>0)){
+      items.push({part:'Опоры пластиковые', qty:4});
+    }
+    // üst dolap askı
+    if(isWall){
+      items.push({part:'Навесы (подвеска)', qty:2});
+    }
+    // raf taşıyıcı
+    if(!isDrawer){
+      items.push({part:'Полкодержатели', qty:m.h>1.2?16:8});
+    }
+    list.push({mod:tag, items:items});
+  });
+  return list;
+}
+
 function computeDetailing(){
   // her modül için parça listesi (mm)
   var t=18; // panel kalınlığı mm
