@@ -154,7 +154,7 @@
   <div class="tb-left">
     <button class="tb-back" onclick="goBack()">←</button>
     <span class="tb-title" id="projTitle">Проект</span>
-    <span class="tb-ver">v5.3</span>
+    <span class="tb-ver">v5.4</span>
   </div>
   <div class="tb-actions">
     <button class="tb-btn" onclick="toggleList()" title="Список">📑</button>
@@ -200,10 +200,11 @@
 
 <div id="canvas-wrap">
   <div class="view-ctrl">
-    <button class="view-btn" onclick="setView('3d')">3D</button>
-    <button class="view-btn" onclick="setView('top')">⬇</button>
-    <button class="view-btn" onclick="setView('front')">▢</button>
-    <button class="view-btn" onclick="resetCam()">⟲</button>
+    <button class="view-btn" onclick="setView('3d')" title="3D">3D</button>
+    <button class="view-btn" onclick="setView('top')" title="Сверху (план)">⬇</button>
+    <button class="view-btn" onclick="setView('front')" title="Спереди">▢</button>
+    <button class="view-btn" onclick="setView('side')" title="Сбоку">◁</button>
+    <button class="view-btn" onclick="resetCam()" title="Сброс">⟲</button>
   </div>
   <!-- Taşıma modu toggle -->
   <button id="moveModeBtn" onclick="toggleMoveMode()" style="position:absolute;left:12px;top:12px;z-index:15;
@@ -471,11 +472,14 @@ function updateCam(){
   camera.lookAt(camT);
 }
 
+var camTargetA=null; // yumuşak geçiş hedefi
 function setView(t){
-  if(t==='top') camA={theta:Math.PI/2,phi:0.05,radius:5.5};
-  else if(t==='front') camA={theta:Math.PI/2,phi:Math.PI/2-0.05,radius:4.5};
-  else camA={theta:0.8,phi:0.92,radius:4.2};
-  updateCam();
+  var target;
+  if(t==='top')        target={theta:Math.PI/2, phi:0.02, radius:6};       // kuşbakışı (tam tepe)
+  else if(t==='front') target={theta:Math.PI/2, phi:Math.PI/2-0.04, radius:4.5}; // önden
+  else if(t==='side')  target={theta:0, phi:Math.PI/2-0.04, radius:4.5};   // yandan
+  else                 target={theta:0.8, phi:0.92, radius:4.2};           // 3D perspektif
+  camTargetA=target;
 }
 function resetCam(){ camT.set(0,0.8,0); setView('3d'); }
 
@@ -591,7 +595,7 @@ function setupControls(el){
       return;
     }
     var dx=e.clientX-lx, dy=e.clientY-ly; lx=e.clientX; ly=e.clientY;
-    if(mode==='rot'){ camA.theta-=dx*0.01; camA.phi=Math.max(0.1,Math.min(Math.PI/2-0.02,camA.phi-dy*0.01)); }
+    if(mode==='rot'){ camTargetA=null; camA.theta-=dx*0.01; camA.phi=Math.max(0.1,Math.min(Math.PI/2-0.02,camA.phi-dy*0.01)); }
     else { camT.x-=dx*0.01; camT.y+=dy*0.01; }
     updateCam();
   });
@@ -619,9 +623,11 @@ function setupControls(el){
         applyModPos(dragMod);
         if(typeof buildCountertop==='function') buildCountertop(); }
     } else if(mode==='rot'&&e.touches.length===1){
+      camTargetA=null;
       var dx=e.touches[0].clientX-lx, dy=e.touches[0].clientY-ly; lx=e.touches[0].clientX; ly=e.touches[0].clientY;
       camA.theta-=dx*0.01; camA.phi=Math.max(0.1,Math.min(Math.PI/2-0.02,camA.phi-dy*0.01)); updateCam();
     } else if(mode==='pinch'&&e.touches.length===2){
+      camTargetA=null;
       var d=tdist(e); camA.radius=Math.max(1.5,Math.min(20,camA.radius-(d-pdist)*0.02)); pdist=d; updateCam();
     }
   },{passive:false});
@@ -642,6 +648,17 @@ function pickAt(cx,cy,el){
 
 function animate(){
   requestAnimationFrame(animate);
+  // yumuşak kamera geçişi (hedef varsa ona doğru lerp)
+  if(camTargetA){
+    var t=camTargetA, sp=0.15, done=true;
+    ['theta','phi','radius'].forEach(function(k){
+      var diff=t[k]-camA[k];
+      if(Math.abs(diff)>0.001){ camA[k]+=diff*sp; done=false; }
+      else camA[k]=t[k];
+    });
+    updateCam();
+    if(done) camTargetA=null;
+  }
   if(renderer&&scene&&camera) renderer.render(scene,camera);
 }
 
