@@ -154,7 +154,7 @@
   <div class="tb-left">
     <button class="tb-back" onclick="goBack()">←</button>
     <span class="tb-title" id="projTitle">Проект</span>
-    <span class="tb-ver">v4.9</span>
+    <span class="tb-ver">v5.0</span>
   </div>
   <div class="tb-actions">
     <button class="tb-btn" onclick="toggleList()" title="Список">📑</button>
@@ -352,7 +352,7 @@ function findItem(type){
 var scene,camera,renderer,raycaster,pointer;
 var modules=[], selected=null, project=null;
 var roomGroup=null;
-var room={ width:4.0, depth:3.0, height:2.7, floor:'parquet', wall:'#eef1f5', countertop:true, ctColor:0x3a3a3a };
+var room={ width:4.0, depth:3.0, height:2.7, floor:'parquet', wall:'#eef1f5', countertop:true, ctColor:0xb8895a, ctWood:true };
 var hist=[], histIdx=-1;
 var camA={theta:0.8,phi:0.92,radius:4.2}, camT;
 var activeTab=null;
@@ -745,6 +745,38 @@ function buildRoom(){
 function rebuildRoom(){ buildRoom(); layoutRow(); }
 
 // ════════ GERÇEKÇI MODÜL (gövde + cephe + kulp) ════════
+// çerçeveli kapak paneli (klasik mutfak kapağı görünümü)
+function makeFacade(g,faces,faceColor,finish,fw,fh,ft,px,py,pz){
+  function fmat(){
+    if(finish==='gloss') return new THREE.MeshStandardMaterial({color:faceColor,roughness:0.12,metalness:0.15});
+    if(finish==='wood')  return new THREE.MeshStandardMaterial({map:makeWoodTexture(faceColor),roughness:0.6,metalness:0.02});
+    return new THREE.MeshStandardMaterial({color:faceColor,roughness:0.7,metalness:0.03});
+  }
+  var grp=new THREE.Group();
+  // ana panel (dış çerçeve - biraz kalın)
+  var outer=new THREE.Mesh(new THREE.BoxGeometry(fw,fh,ft),fmat());
+  outer.castShadow=true; grp.add(outer);
+  // iç kabartma panel (filenka) - sadece yeterince büyük kapaklarda
+  if(fw>0.18 && fh>0.18){
+    var border=Math.min(0.06, fw*0.16, fh*0.16);
+    var innerMat=fmat();
+    if(innerMat.color) innerMat.color.set(faceColor);
+    var inner=new THREE.Mesh(new THREE.BoxGeometry(fw-2*border, fh-2*border, ft*0.5),innerMat);
+    inner.position.set(0,0,ft*0.5); inner.castShadow=true;
+    grp.add(inner);
+    // çerçeve hattı (ince gölge çizgisi)
+    var line=new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.BoxGeometry(fw-2*border, fh-2*border, ft*0.5)),
+      new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:0.12})
+    );
+    line.position.set(0,0,ft*0.5); grp.add(line);
+  }
+  grp.position.set(px,py,pz);
+  if(proMode){ grp.traverse(function(o){ if(o.material){ o.material.transparent=true; o.material.opacity=0.35; } }); }
+  g.add(grp);
+  faces.push(grp);
+}
+
 function buildMesh(mod){
   var g=new THREE.Group();
   g.userData.modId=mod.id;
@@ -813,20 +845,17 @@ function buildMesh(mod){
       // açık raf - cephe yok, iç raf koy
       panel(w-2*t,t,d-0.02, 0, 0, 0);             // orta raf
     } else {
-      // kapı(lar): genişlik 600+ ise çift kapı
+      // kapı(lar): genişlik 550+ ise çift kapı
       var dbl = w>0.55;
       if(dbl){
         var dw=(w-3*gap)/2;
-        var dL=new THREE.Mesh(new THREE.BoxGeometry(dw,h-2*gap,t),faceMat);
-        dL.position.set(-dw/2-gap/2,0,d/2-t/2+0.002); dL.castShadow=true; g.add(dL); faces.push(dL);
-        var dR=new THREE.Mesh(new THREE.BoxGeometry(dw,h-2*gap,t),faceMat);
-        dR.position.set(dw/2+gap/2,0,d/2-t/2+0.002); dR.castShadow=true; g.add(dR); faces.push(dR);
-        addHandle(g,mod, -gap, 0, d/2,'v');       // ortada
+        makeFacade(g,faces,faceColor,finish,dw,h-2*gap,t, -dw/2-gap/2,0,d/2-t/2+0.002);
+        makeFacade(g,faces,faceColor,finish,dw,h-2*gap,t,  dw/2+gap/2,0,d/2-t/2+0.002);
+        addHandle(g,mod, -gap, 0, d/2,'v');
         addHandle(g,mod,  gap, 0, d/2,'v');
       } else {
-        var dr=new THREE.Mesh(new THREE.BoxGeometry(w-2*gap,h-2*gap,t),faceMat);
-        dr.position.set(0,0,d/2-t/2+0.002); dr.castShadow=true; g.add(dr); faces.push(dr);
-        addHandle(g,mod, w/2-0.05, 0, d/2,'v');   // sağda dikey kulp
+        makeFacade(g,faces,faceColor,finish,w-2*gap,h-2*gap,t, 0,0,d/2-t/2+0.002);
+        addHandle(g,mod, w/2-0.05, 0, d/2,'v');
       }
     }
   }
@@ -957,7 +986,14 @@ function buildCountertop(){
   if(!bases.length) return;
   countertopGroup=new THREE.Group();
   countertopGroup.userData.helper=true;
-  var ctMat=new THREE.MeshStandardMaterial({color:room.ctColor||0x3a3a3a,roughness:0.4,metalness:0.1});
+  // tezgah malzemesi - ahşap doku veya düz renk
+  var ctMat;
+  if(room.ctWood!==false){
+    // varsayılan: açık ahşap tezgah (referans gibi)
+    ctMat=new THREE.MeshStandardMaterial({map:makeWoodTexture(room.ctColor? '#'+room.ctColor.toString(16).padStart(6,'0') : '#b8895a'),roughness:0.45,metalness:0.05});
+  } else {
+    ctMat=new THREE.MeshStandardMaterial({color:room.ctColor||0x3a3a3a,roughness:0.4,metalness:0.1});
+  }
   var th=0.04, over=0.02;
   bases.forEach(function(m){
     var legH = (m.legs!==undefined ? m.legs : 0.1);
