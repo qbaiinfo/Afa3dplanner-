@@ -154,7 +154,7 @@
   <div class="tb-left">
     <button class="tb-back" onclick="goBack()">←</button>
     <span class="tb-title" id="projTitle">Проект</span>
-    <span class="tb-ver">v5.1</span>
+    <span class="tb-ver">v5.2</span>
   </div>
   <div class="tb-actions">
     <button class="tb-btn" onclick="toggleList()" title="Список">📑</button>
@@ -1209,6 +1209,22 @@ function closePalette(){
 
 // ════════ PROPS UI ════════
 // boyut giriş kutusu (sayı yaz + artı/eksi)
+// modül tipine göre standart yükseklikler (kitchenplanner.net mantığı)
+function stdHeights(m){
+  var isWall = m.type.indexOf('wall')===0;
+  var isTall = m.type.indexOf('tall')===0 || m.type.indexOf('wr')===0;
+  if(isWall){
+    // üst dolap: 4 yükseklik
+    return [{mm:360,name:'Низкий'},{mm:720,name:'Стандарт'},{mm:900,name:'Высокий'},{mm:1040,name:'Макс'}];
+  }
+  if(isTall){
+    // boy dolap (penal): 4 yükseklik
+    return [{mm:1300,name:'Низкий'},{mm:1950,name:'Стандарт'},{mm:2100,name:'Высокий'},{mm:2300,name:'Макс'}];
+  }
+  // alt dolap: 2 yükseklik
+  return [{mm:720,name:'Стандарт'},{mm:820,name:'Высокий'}];
+}
+
 function dimBox(label,axis,valM){
   var mm=Math.round(valM*1000);
   return '<div style="text-align:center">'+
@@ -1258,6 +1274,13 @@ function renderProps(){
       '<div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap">'+
         [300,400,450,500,600,800,900,1000].map(function(ww){
           return '<button onclick="setDimMM(\'w\','+ww+');renderProps()" style="flex:1;min-width:42px;padding:7px 4px;border-radius:7px;border:1px solid '+(Math.round(m.w*1000)===ww?'var(--orange)':'var(--line)')+';background:'+(Math.round(m.w*1000)===ww?'#fff7ed':'var(--panel2)')+';font-size:11px;font-weight:700;color:var(--ink);cursor:pointer">'+ww+'</button>';
+        }).join('')+
+      '</div>'+
+      // standart yükseklikler (modül tipine göre)
+      '<div style="font-size:10px;color:var(--gray2);font-weight:700;margin:10px 0 4px">Стандартная высота</div>'+
+      '<div style="display:flex;gap:5px;flex-wrap:wrap">'+
+        stdHeights(m).map(function(hh){
+          return '<button onclick="setDimMM(\'h\','+hh.mm+');renderProps()" style="flex:1;min-width:54px;padding:7px 4px;border-radius:7px;border:1px solid '+(Math.round(m.h*1000)===hh.mm?'var(--orange)':'var(--line)')+';background:'+(Math.round(m.h*1000)===hh.mm?'#fff7ed':'var(--panel2)')+';font-size:10px;font-weight:700;color:var(--ink);cursor:pointer" title="'+hh.name+'">'+hh.mm+'</button>';
         }).join('')+
       '</div>'+
     '</div>'+
