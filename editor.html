@@ -154,7 +154,7 @@
   <div class="tb-left">
     <button class="tb-back" onclick="goBack()">←</button>
     <span class="tb-title" id="projTitle">Проект</span>
-    <span class="tb-ver">v5.7</span>
+    <span class="tb-ver">v5.8</span>
   </div>
   <div class="tb-actions">
     <button class="tb-btn" onclick="toggleList()" title="Список">📑</button>
@@ -297,6 +297,7 @@
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 "use strict";
@@ -439,35 +440,36 @@ var activeTab=null;
 // ════════ THREE INIT ════════
 function initThree(){
   if(scene) return true;
-  if(typeof THREE==='undefined'){ showErr('THREE не загрузился'); return false; }
-  var wrap=document.getElementById('canvas-wrap');
-  if(!wrap) return false;
-  var W=wrap.clientWidth||window.innerWidth, H=wrap.clientHeight||window.innerHeight;
+  if(typeof THREE==='undefined'){ showErr('THREE не загрузился (проверьте интернет)'); return false; }
+  try{
+    var wrap=document.getElementById('canvas-wrap');
+    if(!wrap){ showErr('canvas-wrap не найден'); return false; }
+    var W=wrap.clientWidth||window.innerWidth, H=wrap.clientHeight||window.innerHeight;
 
-  scene=new THREE.Scene();
-  scene.background=new THREE.Color(0xe2e8f0);
-  camera=new THREE.PerspectiveCamera(60,W/H,0.05,100);
-  camT=new THREE.Vector3(0,0.8,0);
+    scene=new THREE.Scene();
+    scene.background=new THREE.Color(0xe2e8f0);
+    camera=new THREE.PerspectiveCamera(60,W/H,0.05,100);
+    camT=new THREE.Vector3(0,0.8,0);
 
-  renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
-  renderer.setSize(W,H);
-  renderer.shadowMap.enabled=true;
-  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-  if(THREE.ACESFilmicToneMapping!==undefined){ renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.15; }
-  wrap.appendChild(renderer.domElement);
+    renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+    renderer.setSize(W,H);
+    renderer.shadowMap.enabled=true;
+    if(THREE.PCFSoftShadowMap!==undefined) renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    if(THREE.ACESFilmicToneMapping!==undefined){ renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.15; }
+    wrap.appendChild(renderer.domElement);
 
-  // canlı, dengeli ışık
-  scene.add(new THREE.HemisphereLight(0xffffff,0xd8dde5,0.85));
-  scene.add(new THREE.AmbientLight(0xffffff,0.55));
-  var dl=new THREE.DirectionalLight(0xffffff,1.0);
-  dl.position.set(5,9,6); dl.castShadow=true;
-  dl.shadow.mapSize.width=2048; dl.shadow.mapSize.height=2048;
-  dl.shadow.camera.near=0.5; dl.shadow.camera.far=30;
-  dl.shadow.camera.left=-8; dl.shadow.camera.right=8;
-  dl.shadow.camera.top=8; dl.shadow.camera.bottom=-8;
-  dl.shadow.bias=-0.0005;
-  scene.add(dl);
+    // canlı, dengeli ışık
+    scene.add(new THREE.HemisphereLight(0xffffff,0xd8dde5,0.85));
+    scene.add(new THREE.AmbientLight(0xffffff,0.55));
+    var dl=new THREE.DirectionalLight(0xffffff,1.0);
+    dl.position.set(5,9,6); dl.castShadow=true;
+    dl.shadow.mapSize.width=2048; dl.shadow.mapSize.height=2048;
+    dl.shadow.camera.near=0.5; dl.shadow.camera.far=30;
+    dl.shadow.camera.left=-8; dl.shadow.camera.right=8;
+    dl.shadow.camera.top=8; dl.shadow.camera.bottom=-8;
+    dl.shadow.bias=-0.0005;
+    scene.add(dl);
   var dl2=new THREE.DirectionalLight(0xffffff,0.4);
   dl2.position.set(-5,4,-3); scene.add(dl2);
 
@@ -482,6 +484,11 @@ function initThree(){
   animate();
   window.addEventListener('resize',onResize);
   return true;
+  }catch(e){
+    showErr('3D ошибка: '+e.message);
+    scene=null; // tekrar denenebilsin
+    return false;
+  }
 }
 
 function onResize(){
