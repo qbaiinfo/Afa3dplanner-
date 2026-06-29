@@ -154,7 +154,7 @@
   <div class="tb-left">
     <button class="tb-back" onclick="goBack()">←</button>
     <span class="tb-title" id="projTitle">Проект</span>
-    <span class="tb-ver">v5.2</span>
+    <span class="tb-ver">v5.3</span>
   </div>
   <div class="tb-actions">
     <button class="tb-btn" onclick="toggleList()" title="Список">📑</button>
@@ -401,7 +401,8 @@ function findItem(type){
 var scene,camera,renderer,raycaster,pointer;
 var modules=[], selected=null, project=null;
 var roomGroup=null;
-var room={ width:4.0, depth:3.0, height:2.7, floor:'parquet', wall:'#eef1f5', countertop:true, ctColor:0xb8895a, ctWood:true };
+var room={ width:4.0, depth:3.0, height:2.7, floor:'parquet', wall:'#eef1f5', countertop:true, ctColor:0xb8895a, ctWood:true, shape:'L' };
+// shape: 'I' (düz/tek duvar), 'L' (köşe), 'U' (üç duvar), 'G' (U+çıkıntı)
 var hist=[], histIdx=-1;
 var camA={theta:0.8,phi:0.92,radius:4.2}, camT;
 var activeTab=null;
@@ -771,21 +772,31 @@ function buildRoom(){
   floor.receiveShadow=true;
   roomGroup.add(floor);
 
-  // ── DUVARLAR (arka + sol, köşe) ──
+  // ── DUVARLAR (shape'e göre) ──
   var wallMat=new THREE.MeshStandardMaterial({color:room.wall,roughness:0.95,side:THREE.DoubleSide});
-  var back=new THREE.Mesh(new THREE.PlaneGeometry(W,H),wallMat);
-  back.position.set(0,H/2,-D/2); back.receiveShadow=true;
-  roomGroup.add(back);
-  var left=new THREE.Mesh(new THREE.PlaneGeometry(D,H),wallMat);
-  left.rotation.y=Math.PI/2; left.position.set(-W/2,H/2,0); left.receiveShadow=true;
-  roomGroup.add(left);
-
-  // süpürgelik
   var plMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.6});
+  var shape=room.shape||'L';
+
+  // arka duvar - her shape'te var
+  var back=new THREE.Mesh(new THREE.PlaneGeometry(W,H),wallMat);
+  back.position.set(0,H/2,-D/2); back.receiveShadow=true; roomGroup.add(back);
   var plB=new THREE.Mesh(new THREE.BoxGeometry(W,0.08,0.02),plMat);
   plB.position.set(0,0.04,-D/2+0.011); roomGroup.add(plB);
-  var plL=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.08,D),plMat);
-  plL.position.set(-W/2+0.011,0.04,0); roomGroup.add(plL);
+
+  // sol duvar - L, U, G
+  if(shape==='L'||shape==='U'||shape==='G'){
+    var left=new THREE.Mesh(new THREE.PlaneGeometry(D,H),wallMat);
+    left.rotation.y=Math.PI/2; left.position.set(-W/2,H/2,0); left.receiveShadow=true; roomGroup.add(left);
+    var plL=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.08,D),plMat);
+    plL.position.set(-W/2+0.011,0.04,0); roomGroup.add(plL);
+  }
+  // sağ duvar - U, G
+  if(shape==='U'||shape==='G'){
+    var right=new THREE.Mesh(new THREE.PlaneGeometry(D,H),wallMat);
+    right.rotation.y=-Math.PI/2; right.position.set(W/2,H/2,0); right.receiveShadow=true; roomGroup.add(right);
+    var plR=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.08,D),plMat);
+    plR.position.set(W/2-0.011,0.04,0); roomGroup.add(plR);
+  }
 
   scene.add(roomGroup);
   if(camT) camT.set(0,H*0.35,0);
@@ -1013,16 +1024,38 @@ function addHandle(group,mod,hx,hy,halfD,orient){
 }
 
 function layoutRow(){
-  var startX=-room.width/2;
-  var backZ=-room.depth/2;
-  var x=startX;
+  var halfW=room.width/2, halfD=room.depth/2;
+  // duvarlara göre grupla (manuel olmayanlar)
+  var byWall={back:[],left:[],right:[]};
   modules.forEach(function(m){
     if(m._manual){ applyModPos(m); return; }
-    m.x=x+m.w/2;
-    m.z=backZ + m.d/2 + 0.02;
-    applyModPos(m);
-    x+=m.w;
+    var wall=m.wall||'back';
+    if(!byWall[wall]) byWall[wall]=[];
+    byWall[wall].push(m);
   });
+
+  // ARKA duvar: soldan sağa, z sabit (arka), dönüş yok
+  var x=-halfW;
+  byWall.back.forEach(function(m){
+    m.x=x+m.w/2; m.z=-halfD+m.d/2+0.02; m.rot=0;
+    applyModPos(m); x+=m.w;
+  });
+
+  // SOL duvar: arkadan öne, x sabit (sol), 90° dönük
+  var z=-halfD;
+  byWall.left.forEach(function(m){
+    // köşe çakışmasını önle - arka duvardaki ilk modülün derinliği kadar boşluk
+    m.x=-halfW+m.d/2+0.02; m.z=z+m.w/2; m.rot=Math.PI/2;
+    applyModPos(m); z+=m.w;
+  });
+
+  // SAĞ duvar: arkadan öne, x sabit (sağ), -90° dönük
+  var z2=-halfD;
+  byWall.right.forEach(function(m){
+    m.x=halfW-m.d/2-0.02; m.z=z2+m.w/2; m.rot=-Math.PI/2;
+    applyModPos(m); z2+=m.w;
+  });
+
   buildCountertop();
 }
 
@@ -1046,8 +1079,16 @@ function buildCountertop(){
   var th=0.04, over=0.02;
   bases.forEach(function(m){
     var legH = (m.legs!==undefined ? m.legs : 0.1);
-    var slab=new THREE.Mesh(new THREE.BoxGeometry(m.w+0.002, th, m.d+over),ctMat);
-    slab.position.set(m.x, legH+m.h+th/2, m.z+over/2);  // ayak + gövde + yarı tezgah
+    var rotated = Math.abs(m.rot||0) > 0.1;
+    var slab;
+    if(rotated){
+      // sol/sağ duvar - tezgah 90° dönük
+      slab=new THREE.Mesh(new THREE.BoxGeometry(m.d+over, th, m.w+0.002),ctMat);
+      slab.position.set(m.x + (m.rot>0? over/2 : -over/2), legH+m.h+th/2, m.z);
+    } else {
+      slab=new THREE.Mesh(new THREE.BoxGeometry(m.w+0.002, th, m.d+over),ctMat);
+      slab.position.set(m.x, legH+m.h+th/2, m.z+over/2);
+    }
     slab.castShadow=true; slab.receiveShadow=true;
     countertopGroup.add(slab);
   });
@@ -1158,6 +1199,20 @@ function roomPanelHTML(){
   ];
   var walls=['#eef1f5','#ffffff','#e8e0d0','#d4e2e0','#e6dcd2','#dde3ec'];
   var h='<div style="grid-column:1/-1">';
+  // mutfak şekli
+  var shapes=[
+    {id:'I',ico:'▬',name:'Прямая'},
+    {id:'L',ico:'◣',name:'Угловая L'},
+    {id:'U',ico:'⊔',name:'П-образная'},
+    {id:'G',ico:'⊏',name:'G-образная'}
+  ];
+  h+='<div style="font-size:11px;font-weight:800;color:var(--gray2);text-transform:uppercase;letter-spacing:.4px;margin:4px 0 8px">Форма кухни</div>';
+  h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:16px">';
+  h+=shapes.map(function(s){
+    return '<div class="pitem" style="'+((room.shape||'L')===s.id?'border-color:var(--orange);background:#fff7ed':'')+'" onclick="setShape(\''+s.id+'\')">'+
+      '<span class="ico" style="font-size:22px">'+s.ico+'</span><span class="nm">'+s.name+'</span></div>';
+  }).join('');
+  h+='</div>';
   // zemin
   h+='<div style="font-size:11px;font-weight:800;color:var(--gray2);text-transform:uppercase;letter-spacing:.4px;margin:4px 0 8px">Пол</div>';
   h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:16px">';
@@ -1190,6 +1245,7 @@ function roomPanelHTML(){
   return h;
 }
 function setFloor(id){ room.floor=id; rebuildRoom(); openPalette('room'); }
+function setShape(id){ room.shape=id; rebuildRoom(); openPalette('room'); }
 function setWall(hex){ room.wall=hex; rebuildRoom(); openPalette('room'); }
 function toggleCountertop(){ room.countertop=!room.countertop; buildCountertop(); openPalette('room'); }
 function setCtColor(hex){ room.ctColor=parseInt(hex.replace('#','0x')); buildCountertop(); }
@@ -1350,6 +1406,17 @@ function renderProps(){
       '<button onclick="nudge(0,-0.05)" style="padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-size:16px;cursor:pointer">↑</button>'+
       '<button onclick="nudge(0,0.05)" style="padding:12px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-size:16px;cursor:pointer">↓</button>'+
     '</div>'+
+    // duvar seçimi (L/U/G şekillerinde)
+    ((room.shape&&room.shape!=='I')?
+      '<label style="font-size:11px;color:var(--gray2)">Прислонить к стене</label>'+
+      '<div style="display:flex;gap:5px;margin:4px 0 8px">'+
+        [{id:'back',name:'Задняя'},{id:'left',name:'Левая'}].concat(
+          (room.shape==='U'||room.shape==='G')?[{id:'right',name:'Правая'}]:[]
+        ).map(function(wl){
+          return '<button onclick="setWall(\''+wl.id+'\')" style="flex:1;padding:8px 4px;border-radius:7px;border:1px solid '+((m.wall||'back')===wl.id?'var(--orange)':'var(--line)')+';background:'+((m.wall||'back')===wl.id?'#fff7ed':'var(--panel2)')+';font-size:10px;font-weight:700;color:var(--ink);cursor:pointer">'+wl.name+'</button>';
+        }).join('')+
+      '</div>'
+    :'')+
     '<button onclick="resetPos()" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-size:11px;font-weight:700;color:var(--gray2);cursor:pointer">↩️ Вернуть в ряд (авто)</button>'+
   '</div>';
 
@@ -1377,11 +1444,13 @@ function nudge(dx,dz){
 // modülü oda sınırları içinde tut (duvarı aşmasın)
 function clampToRoom(m){
   var halfW=room.width/2, halfD=room.depth/2;
-  // x: sol/sağ duvar arası
-  var minX=-halfW + m.w/2, maxX=halfW - m.w/2;
+  // döndürülmüşse (sol/sağ duvar) genişlik ve derinlik yer değiştirir
+  var rotated = Math.abs(m.rot||0) > 0.1;
+  var spanX = rotated ? m.d : m.w;  // x eksenindeki genişlik
+  var spanZ = rotated ? m.w : m.d;  // z eksenindeki genişlik
+  var minX=-halfW + spanX/2, maxX=halfW - spanX/2;
   if(m.x<minX) m.x=minX; if(m.x>maxX) m.x=maxX;
-  // z: arka duvardan öne (arka duvar -halfD, ön açık ama oda içinde tut)
-  var minZ=-halfD + m.d/2, maxZ=halfD - m.d/2;
+  var minZ=-halfD + spanZ/2, maxZ=halfD - spanZ/2;
   if(m.z<minZ) m.z=minZ; if(m.z>maxZ) m.z=maxZ;
 }
 
@@ -1425,6 +1494,15 @@ function resetPos(){
   if(!selected) return;
   selected._manual=false;
   layoutRow();
+  pushHist();
+}
+// modülü başka duvara ata (L/U/G)
+function setWall(wall){
+  if(!selected) return;
+  selected.wall=wall;
+  selected._manual=false; // otomatik o duvara dizilsin
+  layoutRow();
+  renderProps();
   pushHist();
 }
 
@@ -1571,7 +1649,7 @@ function selectFromList(i){
 // ════════ HISTORY ════════
 function snapshot(){
   return modules.map(function(m){ return {id:m.id,type:m.type,name:m.name,w:m.w,h:m.h,d:m.d,x:m.x,z:m.z,color:m.color,handle:m.handle,hideFront:m.hideFront,rot:m.rot,_manual:m._manual,
-    fRail:m.fRail,drawers:m.drawers,fHinge:m.fHinge,fLift:m.fLift,fCargo:m.fCargo,finish:m.finish,legs:m.legs,facadeMat:m.facadeMat}; });
+    fRail:m.fRail,drawers:m.drawers,fHinge:m.fHinge,fLift:m.fLift,fCargo:m.fCargo,finish:m.finish,legs:m.legs,facadeMat:m.facadeMat,wall:m.wall}; });
 }
 function pushHist(){ hist=hist.slice(0,histIdx+1); hist.push(snapshot()); histIdx++; }
 function undo(){
