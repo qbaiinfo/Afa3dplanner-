@@ -154,7 +154,7 @@
   <div class="tb-left">
     <button class="tb-back" onclick="goBack()">←</button>
     <span class="tb-title" id="projTitle">Проект</span>
-    <span class="tb-ver">v4.8</span>
+    <span class="tb-ver">v4.9</span>
   </div>
   <div class="tb-actions">
     <button class="tb-btn" onclick="toggleList()" title="Список">📑</button>
@@ -832,6 +832,25 @@ function buildMesh(mod){
   }
   mod._faces=faces;
 
+  // ── PLASTİK AYAKLAR (опоры) - alt dolaplar ve penal ──
+  var isBase = mod.type.indexOf('wall')!==0;  // üst dolap değilse ayak var
+  var legH = (mod.legs!==undefined ? mod.legs : 0.1); // varsayılan 100mm
+  if(isBase && legH>0){
+    var legMat=new THREE.MeshStandardMaterial({color:0x2b2b2b,roughness:0.6,metalness:0.1});
+    var legR=0.018, inset=0.05;
+    var positions=[
+      [-w/2+inset, -d/2+inset],[w/2-inset, -d/2+inset],
+      [-w/2+inset, d/2-inset],[w/2-inset, d/2-inset]
+    ];
+    positions.forEach(function(p){
+      var leg=new THREE.Mesh(new THREE.CylinderGeometry(legR,legR,legH,10),legMat);
+      // ayak gövdenin altında: gövde -h/2'den legH aşağı
+      leg.position.set(p[0], -h/2-legH/2, p[1]);
+      leg.castShadow=true;
+      g.add(leg);
+    });
+  }
+
   // ── USTA MODU: iç raflar (şema için, tüm dolaplarda) ──
   if(proMode && mod.type.indexOf('draw')<0){
     var nShelf = h>1.2 ? 3 : (h>0.6 ? 2 : 1);
@@ -941,8 +960,9 @@ function buildCountertop(){
   var ctMat=new THREE.MeshStandardMaterial({color:room.ctColor||0x3a3a3a,roughness:0.4,metalness:0.1});
   var th=0.04, over=0.02;
   bases.forEach(function(m){
+    var legH = (m.legs!==undefined ? m.legs : 0.1);
     var slab=new THREE.Mesh(new THREE.BoxGeometry(m.w+0.002, th, m.d+over),ctMat);
-    slab.position.set(m.x, m.h+th/2, m.z+over/2);
+    slab.position.set(m.x, legH+m.h+th/2, m.z+over/2);  // ayak + gövde + yarı tezgah
     slab.castShadow=true; slab.receiveShadow=true;
     countertopGroup.add(slab);
   });
@@ -1170,6 +1190,17 @@ function renderProps(){
   html+='<div class="prop-row" style="border-top:1px solid var(--line);padding-top:12px">'+
     '<label style="color:var(--orange)">⚙️ Фурнитура</label></div>';
 
+  // plastik ayak (alt dolaplar - üst dolap değilse)
+  if(!isWall){
+    var legMM = Math.round((m.legs!==undefined?m.legs:0.1)*1000);
+    html+='<div class="prop-row"><label>Опоры (ножки) <span class="val">'+(legMM>0?legMM+' мм':'нет')+'</span></label>'+
+      '<div style="display:flex;gap:5px">'+
+        [0,95,100,120,150].map(function(lv){
+          return '<button onclick="setLegs('+lv+')" style="flex:1;padding:9px 4px;border-radius:8px;border:1px solid '+(legMM===lv?'var(--orange)':'var(--line)')+';background:'+(legMM===lv?'#fff7ed':'var(--panel2)')+';font-size:11px;font-weight:700;color:var(--ink);cursor:pointer">'+(lv===0?'Нет':lv)+'</button>';
+        }).join('')+
+      '</div></div>';
+  }
+
   if(isDrawer){
     // çekmece ray sistemi
     var rails=[{id:'roller',name:'Роликовые'},{id:'tandem',name:'Tandembox'},{id:'metabox',name:'Метабокс'}];
@@ -1247,7 +1278,8 @@ function clampToRoom(m){
 // modülün doğru y (yükseklik) konumunu uygula - alt yerde, üst yukarıda
 function modBaseY(m){
   if(m.type.indexOf('wall')===0) return 1.45 + m.h/2;   // üst dolap (asılı)
-  return m.h/2;                                          // alt/penal: zeminde
+  var legH = (m.legs!==undefined ? m.legs : 0.1);        // ayak yüksekliği
+  return legH + m.h/2;                                   // alt/penal: ayakların üstünde
 }
 function applyModPos(m){
   clampToRoom(m);
@@ -1318,6 +1350,13 @@ function rebuildSelected(){
   buildMesh(selected);
   if(selected._selBox) selected._selBox.material.opacity=0.5;
   layoutRow(); renderProps();
+}
+
+// plastik ayak yüksekliği (mm)
+function setLegs(mm){
+  if(!selected) return;
+  selected.legs = mm/1000;
+  rebuildSelected();
 }
 
 function setDim(axis,val){
@@ -1405,7 +1444,7 @@ function selectFromList(i){
 // ════════ HISTORY ════════
 function snapshot(){
   return modules.map(function(m){ return {id:m.id,type:m.type,name:m.name,w:m.w,h:m.h,d:m.d,x:m.x,z:m.z,color:m.color,handle:m.handle,hideFront:m.hideFront,rot:m.rot,_manual:m._manual,
-    fRail:m.fRail,drawers:m.drawers,fHinge:m.fHinge,fLift:m.fLift,fCargo:m.fCargo,finish:m.finish}; });
+    fRail:m.fRail,drawers:m.drawers,fHinge:m.fHinge,fLift:m.fLift,fCargo:m.fCargo,finish:m.finish,legs:m.legs}; });
 }
 function pushHist(){ hist=hist.slice(0,histIdx+1); hist.push(snapshot()); histIdx++; }
 function undo(){
