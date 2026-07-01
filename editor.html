@@ -154,7 +154,7 @@
   <div class="tb-left">
     <button class="tb-back" onclick="goBack()">←</button>
     <span class="tb-title" id="projTitle">Проект</span>
-    <span class="tb-ver">v6.3</span>
+    <span class="tb-ver">v6.5</span>
   </div>
   <div class="tb-actions">
     <button class="tb-btn" onclick="toggleList()" title="Список">📑</button>
@@ -626,7 +626,7 @@ function roundRect(x,bx,by,bw,bh,r){
 
 function setupControls(el){
   var lx,ly,mode=null,pdist=0;
-  var dragMod=null;
+  var dragMod=null, dragOff={x:0,z:0};
   var groundY=0;
 
   // ekran noktasını zemin düzlemine yansıt
@@ -660,7 +660,7 @@ function setupControls(el){
     var hit=modAt(e.clientX,e.clientY);
     // Taşıma modu açık VE modüle (veya seçili modül var) → taşı
     if(e.button===0 && moveMode && (hit||selected)){
-      mode='drag'; dragMod=hit||selected; if(dragMod!==selected) selectModule(dragMod);
+      mode='drag'; dragMod=hit||selected; if(dragMod!==selected) selectModule(dragMod); var g0=screenToGround(e.clientX,e.clientY); if(g0){dragOff.x=dragMod.x-g0.x; dragOff.z=dragMod.z-g0.z;}else{dragOff.x=0;dragOff.z=0;}
     }
     else { mode=(e.button===2?'pan':'rot'); }
     lx=e.clientX; ly=e.clientY;
@@ -673,13 +673,13 @@ function setupControls(el){
     if(!mode) return;
     if(mode==='drag'&&dragMod){
       var g=screenToGround(e.clientX,e.clientY);
-      if(g){ dragMod.x=g.x; dragMod.z=g.z; dragMod._manual=true;
+      if(g){ dragMod.x=g.x+dragOff.x; dragMod.z=g.z+dragOff.z; dragMod._manual=true;
         applyModPos(dragMod);
         if(typeof buildCountertop==='function') buildCountertop(); }
       return;
     }
     var dx=e.clientX-lx, dy=e.clientY-ly; lx=e.clientX; ly=e.clientY;
-    if(mode==='rot'){ camTargetA=null; camA.theta-=dx*0.01; camA.phi=Math.max(0.1,Math.min(Math.PI/2-0.02,camA.phi-dy*0.01)); }
+    if(mode==='rot'){ camTargetA=null; camA.theta-=dx*0.005; camA.phi=Math.max(0.1,Math.min(Math.PI/2-0.02,camA.phi-dy*0.005)); }
     else { camT.x-=dx*0.01; camT.y+=dy*0.01; }
     updateCam();
   });
@@ -695,7 +695,7 @@ function setupControls(el){
       lx=e.touches[0].clientX; ly=e.touches[0].clientY;
       var hit=modAt(lx,ly);
       // Taşıma modu açık → modülü taşı. Kapalı → her zaman kamera (dokun=seç touchend'de)
-      if(moveMode && (hit||selected)){ mode='drag'; dragMod=hit||selected; if(dragMod!==selected) selectModule(dragMod); }
+      if(moveMode && (hit||selected)){ mode='drag'; dragMod=hit||selected; if(dragMod!==selected) selectModule(dragMod); var g0=screenToGround(lx,ly); if(g0){dragOff.x=dragMod.x-g0.x; dragOff.z=dragMod.z-g0.z;}else{dragOff.x=0;dragOff.z=0;} }
       else { mode='rot'; if(hit) dragMod=hit; } // hit'i sakla, hareket etmezse touchend seçer
     } else if(e.touches.length===2){ mode='pinch'; pdist=tdist(e); }
   },{passive:false});
@@ -703,13 +703,13 @@ function setupControls(el){
     e.preventDefault(); touchMoved=true;
     if(mode==='drag'&&dragMod&&e.touches.length===1){
       var g=screenToGround(e.touches[0].clientX,e.touches[0].clientY);
-      if(g){ dragMod.x=g.x; dragMod.z=g.z; dragMod._manual=true;
+      if(g){ dragMod.x=g.x+dragOff.x; dragMod.z=g.z+dragOff.z; dragMod._manual=true;
         applyModPos(dragMod);
         if(typeof buildCountertop==='function') buildCountertop(); }
     } else if(mode==='rot'&&e.touches.length===1){
       camTargetA=null;
       var dx=e.touches[0].clientX-lx, dy=e.touches[0].clientY-ly; lx=e.touches[0].clientX; ly=e.touches[0].clientY;
-      camA.theta-=dx*0.01; camA.phi=Math.max(0.1,Math.min(Math.PI/2-0.02,camA.phi-dy*0.01)); updateCam();
+      camA.theta-=dx*0.005; camA.phi=Math.max(0.1,Math.min(Math.PI/2-0.02,camA.phi-dy*0.005)); updateCam();
     } else if(mode==='pinch'&&e.touches.length===2){
       camTargetA=null;
       var d=tdist(e); camA.radius=Math.max(1.5,Math.min(20,camA.radius-(d-pdist)*0.02)); pdist=d; updateCam();
@@ -951,6 +951,64 @@ function makeFacade(g,faces,faceColor,finish,fw,fh,ft,px,py,pz){
   faces.push(grp);
 }
 
+// Coohom K3: teknik cihazların gerçekçi 3D modelleri
+function buildTechMesh(mod,g,w,h,d){
+  var steel=new THREE.MeshStandardMaterial({color:0xc8ccd2,roughness:0.35,metalness:0.7});
+  var dark =new THREE.MeshStandardMaterial({color:0x1a1d22,roughness:0.18,metalness:0.55});
+  var black=new THREE.MeshStandardMaterial({color:0x14161a,roughness:0.5,metalness:0.3});
+  var chrome=new THREE.MeshStandardMaterial({color:0x9aa2ac,roughness:0.25,metalness:0.85});
+
+  if(mod.type==='fridge'){
+    // paslanmaz gövde + iki kapı + uzun saplar
+    var body=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),steel);
+    body.castShadow=true; body.receiveShadow=true; g.add(body);
+    var split=new THREE.Mesh(new THREE.BoxGeometry(w+0.004,0.012,0.012),dark);
+    split.position.set(0,h/6,d/2); g.add(split);          // üst 1/3 dondurucu ayrımı
+    var hb=new THREE.Mesh(new THREE.CylinderGeometry(0.011,0.011,h*0.45,10),chrome);
+    hb.position.set(-w/2+0.07,-h*0.15,d/2+0.03); g.add(hb);
+    var ht=new THREE.Mesh(new THREE.CylinderGeometry(0.011,0.011,h*0.18,10),chrome);
+    ht.position.set(-w/2+0.07,h/3,d/2+0.03); g.add(ht);
+  }
+  else if(mod.type==='stove'){
+    // gövde + siyah ocak tablası + 4 göz + cam fırın kapağı + düğmeler + sap
+    var body2=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),steel);
+    body2.castShadow=true; body2.receiveShadow=true; g.add(body2);
+    var top=new THREE.Mesh(new THREE.BoxGeometry(w-0.02,0.016,d-0.02),black);
+    top.position.set(0,h/2+0.008,0); g.add(top);
+    var burn=new THREE.MeshStandardMaterial({color:0x33383f,roughness:0.4,metalness:0.5});
+    [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(function(p){
+      var bz=new THREE.Mesh(new THREE.CylinderGeometry(0.068,0.068,0.01,16),burn);
+      bz.position.set(p[0]*w*0.22,h/2+0.021,p[1]*d*0.2); g.add(bz);
+    });
+    var glass=new THREE.Mesh(new THREE.BoxGeometry(w*0.78,h*0.4,0.012),dark);
+    glass.position.set(0,-h*0.12,d/2+0.004); g.add(glass);
+    var bar=new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.009,w*0.72,10),chrome);
+    bar.rotation.z=Math.PI/2; bar.position.set(0,h*0.12,d/2+0.028); g.add(bar);
+    for(var k=0;k<4;k++){
+      var knob=new THREE.Mesh(new THREE.CylinderGeometry(0.014,0.014,0.016,10),black);
+      knob.rotation.x=Math.PI/2; knob.position.set(-w*0.28+k*w*0.187,h*0.3,d/2+0.008); g.add(knob);
+    }
+  }
+  else if(mod.type==='hood'){
+    // baca + eğik piramit gövde + alt panel (klasik купольная вытяжка)
+    var duct=new THREE.Mesh(new THREE.BoxGeometry(w*0.3,h*0.55,d*0.35),steel);
+    duct.position.set(0,h*0.22,0); duct.castShadow=true; g.add(duct);
+    var pyr=new THREE.Mesh(new THREE.CylinderGeometry(w*0.16,w*0.52,h*0.42,4),steel);
+    pyr.rotation.y=Math.PI/4; pyr.position.set(0,-h*0.24,0); pyr.castShadow=true; g.add(pyr);
+    var base=new THREE.Mesh(new THREE.BoxGeometry(w,0.028,d),steel);
+    base.position.set(0,-h/2+0.014,0); g.add(base);
+  }
+  else if(mod.type==='dishw'){
+    // paslanmaz ön + kontrol şeridi + yatay sap
+    var body3=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),steel);
+    body3.castShadow=true; body3.receiveShadow=true; g.add(body3);
+    var strip=new THREE.Mesh(new THREE.BoxGeometry(w-0.02,0.06,0.012),dark);
+    strip.position.set(0,h/2-0.05,d/2); g.add(strip);
+    var bar2=new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.009,w*0.7,10),chrome);
+    bar2.rotation.z=Math.PI/2; bar2.position.set(0,h/2-0.13,d/2+0.026); g.add(bar2);
+  }
+}
+
 function buildMesh(mod){
   var g=new THREE.Group();
   g.userData.modId=mod.id;
@@ -969,6 +1027,19 @@ function buildMesh(mod){
     cbox.userData.selBox=true; g.add(cbox); mod._selBox=cbox;
     mod._faces=[];
     g.position.set(mod.x, mod.h/2, mod.z);
+    if(mod.rot) g.rotation.y=mod.rot;
+    scene.add(g); mod.mesh=g;
+    return;
+  }
+
+  // ── TEKNİK CİHAZLAR (Coohom K3): gerçekçi modeller ──
+  if(mod.type==='fridge'||mod.type==='stove'||mod.type==='hood'||mod.type==='dishw'){
+    buildTechMesh(mod,g,w,h,d);
+    var tbox=new THREE.Mesh(new THREE.BoxGeometry(w+0.025,h+0.025,d+0.025),
+      new THREE.MeshBasicMaterial({color:0xf97316,transparent:true,opacity:0,side:THREE.BackSide}));
+    tbox.userData.selBox=true; g.add(tbox); mod._selBox=tbox;
+    mod._faces=[];
+    g.position.set(mod.x, modBaseY(mod), mod.z);
     if(mod.rot) g.rotation.y=mod.rot;
     scene.add(g); mod.mesh=g;
     return;
@@ -1403,7 +1474,7 @@ var ICONS={
   base:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M3 7h18"/><path d="M12 9v11"/><circle cx="9.5" cy="14" r="0.8" fill="currentColor"/><circle cx="14.5" cy="14" r="0.8" fill="currentColor"/></svg>',
   wall:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="4" width="16" height="9" rx="1"/><path d="M12 4v9"/><path d="M8 16v2M16 16v2"/><circle cx="9.5" cy="8.5" r="0.8" fill="currentColor"/><circle cx="14.5" cy="8.5" r="0.8" fill="currentColor"/></svg>',
   tall:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="7" y="3" width="10" height="18" rx="1"/><path d="M7 12h10"/><circle cx="14.5" cy="8" r="0.8" fill="currentColor"/><circle cx="14.5" cy="16" r="0.8" fill="currentColor"/></svg>',
-  wr:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M12 3v18"/><path d="M4 8h16"/><circle cx="10" cy="13" r="0.8" fill="currentColor"/><circle cx="14" cy="13" r="0.8" fill="currentColor"/></svg>',
+  wardrobe:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M12 3v18"/><path d="M4 8h16"/><circle cx="10" cy="13" r="0.8" fill="currentColor"/><circle cx="14" cy="13" r="0.8" fill="currentColor"/></svg>',
   tech:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="12" cy="13" r="4"/><path d="M4 8h16"/><circle cx="7" cy="6" r="0.7" fill="currentColor"/><circle cx="10" cy="6" r="0.7" fill="currentColor"/></svg>',
   decor:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v3M12 6c-3 0-5 2-5 5v9h10v-9c0-3-2-5-5-5z"/><path d="M9 14h6"/></svg>'
 };
@@ -1428,7 +1499,7 @@ function openPalette(tabId){
   } else {
     grid.innerHTML=cat.items.map(function(it){
       return '<div class="pitem" onclick="addModule(\''+it.type+'\')">'+
-        '<span class="ico">'+it.ico+'</span>'+
+        '<span class="ico" style="display:inline-flex;color:var(--ink)">'+itemIcon(it)+'</span>'+
         '<span class="nm">'+it.name+'</span>'+
         '<span class="dm">'+it.w+'×'+it.h+'</span></div>';
     }).join('');
@@ -1516,6 +1587,69 @@ function closePalette(){
 
 // ════════ PROPS UI ════════
 // boyut giriş kutusu (sayı yaz + artı/eksi)
+// modül tipine göre gerçekçi mini SVG önizleme (palet ikonları)
+function itemIcon(it){
+  var t=it.type, s='';
+  var st='fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"';
+  var dot='fill="currentColor" stroke="none"';
+  if(t.indexOf('draw')>=0){
+    // çekmeceli: yatay bölmeli kutu
+    s='<rect x="5" y="6" width="22" height="22" rx="1" '+st+'/>'+
+      '<path d="M5 13h22M5 20h22" '+st+'/>'+
+      '<rect x="13" y="8.5" width="6" height="1.6" rx="0.8" '+dot+'/>'+
+      '<rect x="13" y="15.5" width="6" height="1.6" rx="0.8" '+dot+'/>'+
+      '<rect x="13" y="22.5" width="6" height="1.6" rx="0.8" '+dot+'/>';
+  } else if(t.indexOf('sink')>=0){
+    s='<rect x="5" y="8" width="22" height="20" rx="1" '+st+'/>'+
+      '<circle cx="16" cy="5.5" r="1.6" '+st+'/>'+
+      '<path d="M16 7v3" '+st+'/>'+
+      '<path d="M5 8h22" '+st+'/>'+
+      '<circle cx="11" cy="18" r="1" '+dot+'/><circle cx="21" cy="18" r="1" '+dot+'/>';
+  } else if(t.indexOf('corner')>=0){
+    s='<path d="M5 10L16 5l11 5v18H5z" '+st+'/><path d="M16 5v23M5 10h22" '+st+'/>';
+  } else if(t==='column'){
+    s='<rect x="12" y="3" width="8" height="26" '+st+'/><path d="M10 3h12M10 29h12" '+st+'/>';
+  } else if(t==='island'){
+    s='<rect x="4" y="10" width="24" height="16" rx="1" '+st+'/><path d="M2 10h28M16 10v16" '+st+'/>';
+  } else if(t==='table'){
+    s='<path d="M4 12h24M6 12v14M26 12v14" '+st+'/>';
+  } else if(t==='chair'){
+    s='<path d="M10 6v16M10 16h12v6M10 22v4M22 22v4" '+st+'/>';
+  } else if(t.indexOf('oven')>=0||t.indexOf('stove')>=0){
+    s='<rect x="5" y="6" width="22" height="22" rx="2" '+st+'/>'+
+      '<circle cx="16" cy="19" r="5.5" '+st+'/><path d="M5 12h22" '+st+'/>'+
+      '<circle cx="9" cy="9" r="1" '+dot+'/><circle cx="13" cy="9" r="1" '+dot+'/>';
+  } else if(t.indexOf('fridge')>=0){
+    s='<rect x="8" y="3" width="16" height="26" rx="2" '+st+'/><path d="M8 12h16" '+st+'/>'+
+      '<rect x="20" y="6" width="1.5" height="4" rx="0.7" '+dot+'/><rect x="20" y="15" width="1.5" height="6" rx="0.7" '+dot+'/>';
+  } else if(t.indexOf('hood')>=0){
+    s='<path d="M8 5h16v6l4 8H4l4-8z" '+st+'/><path d="M13 23v4M19 23v4" '+st+'/>';
+  } else if(t.indexOf('dish')>=0){
+    s='<rect x="5" y="6" width="22" height="22" rx="2" '+st+'/><path d="M5 11h22" '+st+'/><circle cx="24" cy="8.5" r="1" '+dot+'/>';
+  } else if(t.indexOf('wall')===0){
+    // üst dolap: asılı, altı kesikli
+    var dblW=it.w>550;
+    s='<rect x="5" y="4" width="22" height="16" rx="1" '+st+'/>'+
+      (dblW?'<path d="M16 4v16" '+st+'/>':'')+
+      (t.indexOf('open')>=0?'<path d="M5 12h22" '+st+'/>':'<rect x="'+(dblW?13:20)+'" y="16" width="4" height="1.5" rx="0.7" '+dot+'/>')+
+      '<path d="M9 23v3M23 23v3" stroke-dasharray="2 2" '+st+'/>';
+  } else if(t.indexOf('tall')===0||t.indexOf('wr')===0){
+    // penal/gardırop: uzun, bölmeli
+    var dblT=it.w>550;
+    s='<rect x="8" y="3" width="16" height="26" rx="1" '+st+'/>'+
+      (dblT?'<path d="M16 3v26" '+st+'/>':'<path d="M8 14h16" '+st+'/>')+
+      '<rect x="'+(dblT?12:19)+'" y="12" width="1.6" height="5" rx="0.8" '+dot+'/>';
+  } else {
+    // alt dolap: kutu + tezgah çizgisi + kapı
+    var dblB=it.w>550;
+    s='<path d="M3 6h26" '+st+' stroke-width="2.4"/>'+
+      '<rect x="5" y="9" width="22" height="19" rx="1" '+st+'/>'+
+      (dblB?'<path d="M16 9v19" '+st+'/>':'')+
+      (t.indexOf('open')>=0?'<path d="M5 18h22" '+st+'/>':'<rect x="'+(dblB?12.5:19)+'" y="14" width="1.6" height="6" rx="0.8" '+dot+'/>');
+  }
+  return '<svg viewBox="0 0 32 32" style="width:34px;height:34px">'+s+'</svg>';
+}
+
 // modül tipine göre standart yükseklikler (kitchenplanner.net mantığı)
 function stdHeights(m){
   var isWall = m.type.indexOf('wall')===0;
@@ -1744,8 +1878,9 @@ function clampToRoom(m){
 
 // modülün doğru y (yükseklik) konumunu uygula - alt yerde, üst yukarıda
 function modBaseY(m){
+  if(m.type==='hood') return 1.5 + m.h/2;               // davlumbaz: tezgah üstünde asılı
   if(m.type.indexOf('wall')===0) return 1.45 + m.h/2;   // üst dolap (asılı)
-  if(m.type==='column'||m.type==='table'||m.type==='chair') return m.h/2;  // dekor: zeminde, ayaksız
+  if(m.type==='column'||m.type==='table'||m.type==='chair'||m.type==='fridge'||m.type==='stove'||m.type==='dishw') return m.h/2;  // dekor+cihaz: zeminde
   var legH = (m.legs!==undefined ? m.legs : 0.1);        // ayak yüksekliği
   return legH + m.h/2;                                   // alt/penal: ayakların üstünde
 }
@@ -1756,27 +1891,41 @@ function applyModPos(m){
 
 // 🧲 MIKNATIS: taşınan modülü en yakın komşunun kenarına yapıştır
 function snapModule(m){
-  var SNAP=0.08; // 8cm yakınsa yapış
+  var SNAP=0.18; // 18cm yakınsa yapış (cömert)
+  var SIDE=0.35; // dik eksende hizalanma toleransı
   var isWall = m.type.indexOf('wall')===0;
+  var rotM = Math.abs(m.rot||0)>0.1;
   var best=null, bestDist=SNAP;
   modules.forEach(function(o){
     if(o===m) return;
     var oWall=o.type.indexOf('wall')===0;
     if(isWall!==oWall) return; // alt-alt, üst-üst yapışsın
-    // sağ kenarına / sol kenarına yapışma
-    var rightX=o.x+o.w/2+m.w/2;  // o'nun sağına
-    var leftX =o.x-o.w/2-m.w/2;  // o'nun soluna
-    [{x:rightX,z:o.z},{x:leftX,z:o.z}].forEach(function(cand){
-      var dist=Math.hypot(m.x-cand.x, m.z-cand.z);
-      if(dist<bestDist){ bestDist=dist; best=cand; }
-    });
+    var rotO = Math.abs(o.rot||0)>0.1;
+    if(rotM!==rotO) return; // aynı yöndeki modüller yapışsın
+    if(!rotM){
+      // arka duvar yönü: x ekseninde kenar yapışması
+      [{x:o.x+o.w/2+m.w/2, z:o.z},{x:o.x-o.w/2-m.w/2, z:o.z}].forEach(function(c){
+        var dx=Math.abs(m.x-c.x), dz=Math.abs(m.z-c.z);
+        if(dx<bestDist && dz<SIDE){ bestDist=dx; best=c; }
+      });
+    } else {
+      // sol/sağ duvar yönü: z ekseninde kenar yapışması
+      [{x:o.x, z:o.z+o.w/2+m.w/2},{x:o.x, z:o.z-o.w/2-m.w/2}].forEach(function(c){
+        var dz=Math.abs(m.z-c.z), dx=Math.abs(m.x-c.x);
+        if(dz<bestDist && dx<SIDE){ bestDist=dz; best=c; }
+      });
+    }
   });
   if(best){ m.x=best.x; m.z=best.z; }
-  // duvara da yapış (arka duvar / sol duvar)
-  var backZ=-room.depth/2 + m.d/2 + 0.02;
-  if(Math.abs(m.z-backZ)<0.1) m.z=backZ;
-  var leftX2=-room.width/2 + m.w/2 + 0.02;
-  if(Math.abs(m.x-leftX2)<0.1) m.x=leftX2;
+  // duvarlara yapışma
+  var spanZ = rotM ? m.w/2 : m.d/2;
+  var spanX = rotM ? m.d/2 : m.w/2;
+  var backZ=-room.depth/2 + spanZ + 0.02;
+  if(Math.abs(m.z-backZ)<0.15) m.z=backZ;
+  var leftX2=-room.width/2 + spanX + 0.02;
+  if(Math.abs(m.x-leftX2)<0.15) m.x=leftX2;
+  var rightX2=room.width/2 - spanX - 0.02;
+  if(Math.abs(m.x-rightX2)<0.15) m.x=rightX2;
 }
 // otomatik sıraya geri döndür
 function resetPos(){
