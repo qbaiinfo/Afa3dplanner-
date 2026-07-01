@@ -154,7 +154,7 @@
   <div class="tb-left">
     <button class="tb-back" onclick="goBack()">←</button>
     <span class="tb-title" id="projTitle">Проект</span>
-    <span class="tb-ver">v5.9</span>
+    <span class="tb-ver">v6.3</span>
   </div>
   <div class="tb-actions">
     <button class="tb-btn" onclick="toggleList()" title="Список">📑</button>
@@ -204,7 +204,14 @@
     <button class="view-btn" onclick="setView('top')" title="Сверху (план)">⬇</button>
     <button class="view-btn" onclick="setView('front')" title="Спереди">▢</button>
     <button class="view-btn" onclick="setView('side')" title="Сбоку">◁</button>
+    <button class="view-btn" onclick="toggleVisPanel()" title="Слои (показать/скрыть)">👁</button>
     <button class="view-btn" onclick="resetCam()" title="Сброс">⟲</button>
+  </div>
+  <!-- Görünürlük paneli -->
+  <div id="visPanelWrap" style="display:none;position:absolute;top:12px;right:58px;z-index:16;
+    background:var(--panel);border-radius:12px;box-shadow:var(--shadow-lg);padding:10px 14px;min-width:170px;border:1px solid var(--line)">
+    <div style="font-size:11px;font-weight:800;color:var(--gray2);text-transform:uppercase;margin-bottom:4px">Слои</div>
+    <div id="visPanel"></div>
   </div>
   <!-- Taşıma modu toggle -->
   <button id="moveModeBtn" onclick="toggleMoveMode()" style="position:absolute;left:12px;top:12px;z-index:15;
@@ -218,6 +225,13 @@
     font-size:13px;font-weight:800;box-shadow:var(--shadow);cursor:pointer;display:flex;align-items:center;gap:6px">
     🔧 <span id="proModeLbl">Режим мастера</span>
   </button>
+  <!-- Usta modu lejant -->
+  <div id="proLegend" style="display:none;position:absolute;left:12px;top:102px;z-index:15;
+    background:var(--panel);border-radius:12px;box-shadow:var(--shadow);padding:10px 12px;font-size:11px;font-weight:600;color:var(--ink)">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="width:12px;height:12px;border-radius:50%;background:#2563eb;display:inline-block"></span> Петли</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span style="width:12px;height:12px;border-radius:50%;background:#16a34a;display:inline-block"></span> Направляющие</div>
+    <div style="display:flex;align-items:center;gap:6px"><span style="width:12px;height:12px;border-radius:50%;background:#475569;display:inline-block"></span> Конфирматы</div>
+  </div>
   <div class="empty-hint" id="emptyHint">
     <div class="big">🪑</div>
     <p>Выберите категорию снизу и добавьте модули</p>
@@ -358,7 +372,8 @@ var CATALOG=[
   {id:'decor', tab:'Декор', ico:'🪴', items:[
     {type:'table', ico:'🪑', name:'Стол',   w:1200,h:750,d:700},
     {type:'chair', ico:'🪑', name:'Стул',   w:450, h:900,d:450},
-    {type:'island',ico:'🏝️', name:'Остров', w:1200,h:900,d:800}
+    {type:'island',ico:'🏝️', name:'Остров', w:1200,h:900,d:800},
+    {type:'column',ico:'🏛️', name:'Колонна',w:300, h:2700,d:300}
   ]}
 ];
 
@@ -433,6 +448,37 @@ var modules=[], selected=null, project=null;
 var roomGroup=null;
 var room={ width:4.0, depth:3.0, height:2.7, floor:'parquet', wall:'#dde3ea', countertop:true, ctColor:0xb8895a, ctWood:true, shape:'L' };
 // shape: 'I' (düz/tek duvar), 'L' (köşe), 'U' (üç duvar), 'G' (U+çıkıntı)
+
+// 👁 GÖRÜNÜRLÜK: katmanları gizle/göster
+var vis={ walls:true, floor:true, ceiling:false, countertop:true, facades:true };
+function toggleVis(key){
+  vis[key]=!vis[key];
+  if(key==='countertop'){ buildCountertop(); }
+  else if(key==='facades'){
+    modules.forEach(function(m){
+      if(m._faces) m._faces.forEach(function(f){ f.visible=vis.facades; });
+    });
+  }
+  else { buildRoom(); }
+  renderVisPanel();
+}
+function renderVisPanel(){
+  var p=document.getElementById('visPanel'); if(!p) return;
+  var items=[
+    {k:'walls',n:'Стены'},{k:'floor',n:'Пол'},{k:'ceiling',n:'Потолок'},
+    {k:'countertop',n:'Столешница'},{k:'facades',n:'Фасады (двери)'}
+  ];
+  p.innerHTML=items.map(function(it){
+    return '<div onclick="toggleVis(\''+it.k+'\')" style="display:flex;align-items:center;gap:8px;padding:7px 4px;cursor:pointer;font-size:12px;font-weight:600">'+
+      '<span style="width:34px;height:20px;border-radius:10px;background:'+(vis[it.k]?'var(--orange)':'#cbd5e1')+';position:relative;transition:.2s;flex:0 0 auto">'+
+        '<span style="position:absolute;top:2px;'+(vis[it.k]?'right:2px':'left:2px')+';width:16px;height:16px;border-radius:50%;background:#fff"></span>'+
+      '</span>'+it.n+'</div>';
+  }).join('');
+}
+function toggleVisPanel(){
+  var p=document.getElementById('visPanelWrap');
+  if(p){ var on=p.style.display==='none'; p.style.display=on?'block':'none'; if(on) renderVisPanel(); }
+}
 var hist=[], histIdx=-1;
 var camA={theta:0.8,phi:0.92,radius:4.2}, camT;
 var activeTab=null;
@@ -541,12 +587,15 @@ function toggleProMode(){
   proMode=!proMode;
   var btn=document.getElementById('proModeBtn');
   var lbl=document.getElementById('proModeLbl');
+  var leg=document.getElementById('proLegend');
   if(proMode){
     btn.style.background='#1e293b'; btn.style.color='#fff';
     lbl.textContent='Мастер ✓';
+    if(leg) leg.style.display='block';
   } else {
     btn.style.background='var(--panel)'; btn.style.color='var(--ink)';
     lbl.textContent='Режим мастера';
+    if(leg) leg.style.display='none';
   }
   // tüm modülleri yeniden çiz (ölçüler/şema dahil)
   modules.forEach(function(m){ if(m.mesh) scene.remove(m.mesh); buildMesh(m); });
@@ -811,24 +860,36 @@ function buildRoom(){
 
   var W=room.width, D=room.depth, H=room.height;
 
-  // ── ZEMİN ──
-  var floorMat;
-  if(room.floor==='none'){
-    floorMat=new THREE.MeshStandardMaterial({color:0xf4f6f9,roughness:0.95});
-  } else {
-    var tex=makeFloorTexture(room.floor);
-    floorMat=new THREE.MeshStandardMaterial({map:tex,roughness:0.85});
+  // ── ZEMİN (vis.floor) ──
+  if(vis.floor){
+    var floorMat;
+    if(room.floor==='none'){
+      floorMat=new THREE.MeshStandardMaterial({color:0xf4f6f9,roughness:0.95});
+    } else {
+      var tex=makeFloorTexture(room.floor);
+      floorMat=new THREE.MeshStandardMaterial({map:tex,roughness:0.85});
+    }
+    var floor=new THREE.Mesh(new THREE.PlaneGeometry(W,D),floorMat);
+    floor.rotation.x=-Math.PI/2;
+    floor.receiveShadow=true;
+    roomGroup.add(floor);
   }
-  var floor=new THREE.Mesh(new THREE.PlaneGeometry(W,D),floorMat);
-  floor.rotation.x=-Math.PI/2;
-  floor.receiveShadow=true;
-  roomGroup.add(floor);
 
-  // ── DUVARLAR (shape'e göre) ──
+  // ── TAVAN (vis.ceiling) ──
+  if(vis.ceiling){
+    var ceilMat=new THREE.MeshStandardMaterial({color:0xf8f8f6,roughness:0.9,side:THREE.DoubleSide});
+    var ceil=new THREE.Mesh(new THREE.PlaneGeometry(W,D),ceilMat);
+    ceil.rotation.x=Math.PI/2;
+    ceil.position.set(0,H,0);
+    roomGroup.add(ceil);
+  }
+
+  // ── DUVARLAR (shape'e göre, vis.walls) ──
   var wallMat=new THREE.MeshStandardMaterial({color:room.wall,roughness:0.95,side:THREE.DoubleSide});
   var plMat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.6});
   var shape=room.shape||'L';
 
+  if(vis.walls){
   // arka duvar - her shape'te var
   var back=new THREE.Mesh(new THREE.PlaneGeometry(W,H),wallMat);
   back.position.set(0,H/2,-D/2); back.receiveShadow=true; roomGroup.add(back);
@@ -849,6 +910,7 @@ function buildRoom(){
     var plR=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.08,D),plMat);
     plR.position.set(W/2-0.011,0.04,0); roomGroup.add(plR);
   }
+  } // vis.walls sonu
 
   scene.add(roomGroup);
   if(camT) camT.set(0,H*0.35,0);
@@ -894,6 +956,24 @@ function buildMesh(mod){
   g.userData.modId=mod.id;
 
   var w=mod.w, h=mod.h, d=mod.d;
+
+  // ── KOLON (колонна): duvar renginde düz sütun, cephe/kulp/ayak yok ──
+  if(mod.type==='column'){
+    var colMat=new THREE.MeshStandardMaterial({color:room.wall,roughness:0.92});
+    var col=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),colMat);
+    col.castShadow=true; col.receiveShadow=true;
+    g.add(col);
+    // seçim kabuğu
+    var cbox=new THREE.Mesh(new THREE.BoxGeometry(w+0.025,h+0.025,d+0.025),
+      new THREE.MeshBasicMaterial({color:0xf97316,transparent:true,opacity:0,side:THREE.BackSide}));
+    cbox.userData.selBox=true; g.add(cbox); mod._selBox=cbox;
+    mod._faces=[];
+    g.position.set(mod.x, mod.h/2, mod.z);
+    if(mod.rot) g.rotation.y=mod.rot;
+    scene.add(g); mod.mesh=g;
+    return;
+  }
+
   var bodyColor=0xf0ece4;                         // gövde (ЛДСП iç) açık
   var faceColor=mod.color;                        // cephe rengi
   var t=0.018;                                    // panel kalınlığı 18mm
@@ -934,8 +1014,13 @@ function buildMesh(mod){
     var isDrawer = mod.type.indexOf('draw')>=0;
     var gap=0.003;                                // cepheler arası boşluk
     if(isDrawer){
-      // çekmece cepheleri - sayı ayarlanabilir
-      var n=mod.drawers||3, fh=(h-2*gap*n)/n;
+      // ── PARAMETRİK ÇEKMECE: yükseklik 120-400mm arası kalacak şekilde sayı sınırla ──
+      var n=mod.drawers||3;
+      var maxN=Math.floor(h/0.12), minN=Math.ceil(h/0.40);  // her çekmece 120-400mm
+      if(maxN<1) maxN=1; if(minN<1) minN=1;
+      if(n>maxN){ n=maxN; mod.drawers=n; }
+      if(n<minN){ n=minN; mod.drawers=n; }
+      var fh=(h-2*gap*n)/n;
       var railColor = mod.fRail==='tandem'?0x3b82f6 : (mod.fRail==='metabox'?0x64748b : 0x94a3b8);
       for(var i=0;i<n;i++){
         var fy=-h/2+gap+fh/2+i*(fh+gap);
@@ -957,17 +1042,28 @@ function buildMesh(mod){
       // açık raf - cephe yok, iç raf koy
       panel(w-2*t,t,d-0.02, 0, 0, 0);             // orta raf
     } else {
-      // kapı(lar): genişlik 550+ ise çift kapı
-      var dbl = w>0.55;
-      if(dbl){
-        var dw=(w-3*gap)/2;
-        makeFacade(g,faces,faceColor,finish,dw,h-2*gap,t, -dw/2-gap/2,0,d/2-t/2+0.002);
-        makeFacade(g,faces,faceColor,finish,dw,h-2*gap,t,  dw/2+gap/2,0,d/2-t/2+0.002);
-        addHandle(g,mod, -gap, 0, d/2,'v');
-        addHandle(g,mod,  gap, 0, d/2,'v');
-      } else {
-        makeFacade(g,faces,faceColor,finish,w-2*gap,h-2*gap,t, 0,0,d/2-t/2+0.002);
-        addHandle(g,mod, w/2-0.05, 0, d/2,'v');
+      // ── PARAMETRİK KAPILAR (Coohom mantığı) ──
+      // kapı sayısı genişliğe göre otomatik: <550=1, <1100=2, üstü=3
+      var nDoors = w>1.1 ? 3 : (w>0.55 ? 2 : 1);
+      // boy dolapta (h>1.5) kapı dikey ikiye bölünür: üst kapak + alt kapak
+      var isTallDoor = h>1.5;
+      var dw=(w-(nDoors+1)*gap)/nDoors;
+
+      for(var dj=0;dj<nDoors;dj++){
+        var dx=-w/2+gap+dw/2 + dj*(dw+gap);
+        if(isTallDoor){
+          // alt kapak (büyük, ~%65) + üst kapak (~%35)
+          var hLow=(h-3*gap)*0.65, hUp=(h-3*gap)*0.35;
+          makeFacade(g,faces,faceColor,finish,dw,hLow,t, dx, -h/2+gap+hLow/2, d/2-t/2+0.002);
+          makeFacade(g,faces,faceColor,finish,dw,hUp,t, dx, h/2-gap-hUp/2, d/2-t/2+0.002);
+          addHandle(g,mod, dx+dw/2-0.04, -h/2+gap+hLow-0.06, d/2,'v');
+          addHandle(g,mod, dx+dw/2-0.04, h/2-gap-hUp+0.06, d/2,'v');
+        } else {
+          makeFacade(g,faces,faceColor,finish,dw,h-2*gap,t, dx,0,d/2-t/2+0.002);
+          // kulp: kapı açılış yönüne göre (ilk kapı sağdan, son soldan, orta ortadan)
+          var hx = nDoors===1 ? dw/2-0.05 : (dj===0 ? dw/2-0.04 : (dj===nDoors-1 ? -dw/2+0.04 : 0));
+          addHandle(g,mod, dx+hx, 0, d/2,'v');
+        }
       }
     }
   }
@@ -1002,27 +1098,54 @@ function buildMesh(mod){
     }
   }
 
-  // ── KADEME 4: penal/boy dolap içi (kapı gizliyse veya kargo seçiliyse görünür) ──
+  // ── PARAMETRİK İÇ YAPI + COOHOM K2 (kapı gizliyse veya kargo seçiliyse görünür) ──
   var isTall = mod.type.indexOf('tall')===0 || mod.type.indexOf('wr')===0;
-  if(isTall && (mod.hideFront || (mod.fCargo && mod.fCargo!=='shelf'))){
-    if(mod.fCargo==='cargo'){
-      // karго - dikey tel sepetler
+  var isDrawerIn = mod.type.indexOf('draw')>=0;
+  var inr = mod.interior || {};
+  if(mod.hideFront || (isTall && mod.fCargo && mod.fCargo!=='shelf')){
+    if(isTall && mod.fCargo==='cargo'){
       var cMat=new THREE.MeshStandardMaterial({color:0xb0b8c0,roughness:0.4,metalness:0.6});
-      for(var ci=0;ci<4;ci++){
+      var nBasket=Math.max(2,Math.floor(h/0.4));
+      for(var ci=0;ci<nBasket;ci++){
         var basket=new THREE.Mesh(new THREE.BoxGeometry(w*0.7,0.04,d*0.7),cMat);
-        basket.position.set(0,-h/2+0.3+ci*0.4,0); g.add(basket);
+        basket.position.set(0,-h/2+0.3+ci*((h-0.5)/(nBasket-1||1)),0); g.add(basket);
       }
-    } else if(mod.fCargo==='bottle'){
-      // şişelik - dar dikey raflar
-      var bMat=new THREE.MeshStandardMaterial({color:0xb0b8c0,roughness:0.4,metalness:0.6});
+    } else if(isTall && mod.fCargo==='bottle'){
       var rack=new THREE.Mesh(new THREE.BoxGeometry(w*0.3,h*0.8,d*0.6),
         new THREE.MeshStandardMaterial({color:0xc0c8d0,roughness:0.5,metalness:0.4,transparent:true,opacity:0.6}));
       rack.position.set(0,0,0); g.add(rack);
-    } else {
-      // raflar
-      for(var ri=0;ri<4;ri++){
+    } else if(!isDrawerIn){
+      // RAFLAR: manuel (interior.shelves) veya otomatik parametrik
+      var nShelfP = inr.shelves!==undefined ? inr.shelves : Math.max(1,Math.round(h/0.35)-1);
+      for(var ri=0;ri<nShelfP;ri++){
         var shelf=new THREE.Mesh(new THREE.BoxGeometry(w-2*t,t,d-0.04),bodyMat);
-        shelf.position.set(0,-h/2+0.4+ri*((h-0.5)/3),0); g.add(shelf);
+        shelf.position.set(0,-h/2+(h/(nShelfP+1))*(ri+1),0); g.add(shelf);
+      }
+      // DİKEY BÖLME (перегородка)
+      if(inr.divider){
+        var div=new THREE.Mesh(new THREE.BoxGeometry(t,h-2*t,d-0.04),bodyMat);
+        div.position.set(0,0,0); g.add(div);
+      }
+      // İÇ ÇEKMECELER (alt kısımda, kapak arkasında)
+      var nID=inr.innerDrawers||0;
+      if(nID>0){
+        var idMat=new THREE.MeshStandardMaterial({color:0xe8e2d8,roughness:0.7});
+        var idH=Math.min(0.15,(h*0.5)/nID);
+        for(var idi=0;idi<nID;idi++){
+          var idBox=new THREE.Mesh(new THREE.BoxGeometry(w-2*t-0.02,idH-0.01,d-0.08),idMat);
+          idBox.position.set(0,-h/2+t+idH/2+idi*idH,0.01); g.add(idBox);
+          // çekmece ön yüzü çizgisi
+          var idFront=new THREE.Mesh(new THREE.BoxGeometry(w-2*t-0.02,idH-0.015,0.012),
+            new THREE.MeshStandardMaterial({color:0xd8d0c2,roughness:0.6}));
+          idFront.position.set(0,-h/2+t+idH/2+idi*idH,d/2-0.06); g.add(idFront);
+        }
+      }
+      // ASKI BORUSU (штанга) - üst kısımda yatay
+      if(inr.rod && h>1.2){
+        var rodMesh=new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.012,w-2*t-0.04,10),
+          new THREE.MeshStandardMaterial({color:0xa8b0b8,roughness:0.3,metalness:0.7}));
+        rodMesh.rotation.z=Math.PI/2;
+        rodMesh.position.set(0,h/2-0.12,0); g.add(rodMesh);
       }
     }
   }
@@ -1051,40 +1174,40 @@ function buildMesh(mod){
     );
     g.add(wire);
 
-    // ── MONTAJ NOKTALARI (vida/menteşe/ray) ──
+    // ── MONTAJ NOKTALARI (vida/menteşe/ray) - cephe önünde, belirgin ──
     var isDrawerM = mod.type.indexOf('draw')>=0;
     var isWallM = mod.type.indexOf('wall')===0;
     // menteşe (mavi) - kapaklı dolaplarda, sol ve sağ kenarda
     if(!isDrawerM){
-      var hingeMat=new THREE.MeshBasicMaterial({color:0x2563eb});
-      var nHinge = h>1.2?4:(h>0.7?3:2); // yüksekliğe göre menteşe sayısı
+      var hingeMat=new THREE.MeshBasicMaterial({color:0x2563eb,depthTest:false});
+      var nHinge = h>1.2?4:(h>0.7?3:2);
       var dbl = w>0.55;
-      var sides = dbl ? [-w/2+0.02, w/2-0.02] : [w/2-0.02];
+      var sides = dbl ? [-w/2+0.03, w/2-0.03] : [w/2-0.03];
       sides.forEach(function(sx){
         for(var i=0;i<nHinge;i++){
           var hy=-h/2+0.08 + i*((h-0.16)/(nHinge-1||1));
-          var hinge=new THREE.Mesh(new THREE.SphereGeometry(0.016,8,8),hingeMat);
-          hinge.position.set(sx, hy, d/2-0.03); g.add(hinge);
+          var hinge=new THREE.Mesh(new THREE.SphereGeometry(0.028,10,10),hingeMat);
+          hinge.position.set(sx, hy, d/2+0.04); hinge.renderOrder=999; g.add(hinge);
         }
       });
     } else {
-      // çekmece rayları (yeşil) - yanlarda
-      var railMat=new THREE.MeshBasicMaterial({color:0x16a34a});
+      // çekmece rayları (yeşil) - yanlarda, önde
+      var railMat=new THREE.MeshBasicMaterial({color:0x16a34a,depthTest:false});
       var nd=mod.drawers||3;
       for(var di=0;di<nd;di++){
         var dy=-h/2+(h/nd)*(di+0.5);
-        [-w/2+0.02, w/2-0.02].forEach(function(sx){
-          var rp=new THREE.Mesh(new THREE.SphereGeometry(0.014,8,8),railMat);
-          rp.position.set(sx,dy,0); g.add(rp);
+        [-w/2+0.03, w/2-0.03].forEach(function(sx){
+          var rp=new THREE.Mesh(new THREE.SphereGeometry(0.026,10,10),railMat);
+          rp.position.set(sx,dy,d/2+0.04); rp.renderOrder=999; g.add(rp);
         });
       }
     }
-    // gövde montaj vidaları (gri) - 4 köşe + orta
-    var screwMat=new THREE.MeshBasicMaterial({color:0x64748b});
-    var corners=[[-w/2+0.03,h/2-0.03],[w/2-0.03,h/2-0.03],[-w/2+0.03,-h/2+0.03],[w/2-0.03,-h/2+0.03]];
+    // gövde montaj vidaları (gri) - 4 köşe, önde
+    var screwMat=new THREE.MeshBasicMaterial({color:0x475569,depthTest:false});
+    var corners=[[-w/2+0.04,h/2-0.04],[w/2-0.04,h/2-0.04],[-w/2+0.04,-h/2+0.04],[w/2-0.04,-h/2+0.04]];
     corners.forEach(function(c){
-      var sc=new THREE.Mesh(new THREE.SphereGeometry(0.01,6,6),screwMat);
-      sc.position.set(c[0],c[1],-d/2+0.02); g.add(sc);
+      var sc=new THREE.Mesh(new THREE.SphereGeometry(0.02,8,8),screwMat);
+      sc.position.set(c[0],c[1],d/2+0.03); sc.renderOrder=999; g.add(sc);
     });
   }
 
@@ -1097,18 +1220,47 @@ function buildMesh(mod){
 // kulp ekle (tip: skoba/knob/profil)
 function addHandle(group,mod,hx,hy,halfD,orient){
   var kind=mod.handle||'skoba';
-  var hMat=new THREE.MeshStandardMaterial({color:0x9aa3ad,roughness:0.35,metalness:0.7});
-  if(kind==='none') return;
-  var hz=halfD+0.012;
+  if(kind==='none') return;                       // kulpsuz (gizli)
+  var hMat=new THREE.MeshStandardMaterial({color:0x8a929c,roughness:0.25,metalness:0.85});
+  var hz=halfD+0.014;
   if(kind==='knob'){
-    var k=new THREE.Mesh(new THREE.SphereGeometry(0.011,12,12),hMat);
-    k.position.set(hx,hy,hz); group.add(k); return;
+    // düğme kulp: küre + boyun
+    var neck=new THREE.Mesh(new THREE.CylinderGeometry(0.004,0.004,0.014,8),hMat);
+    neck.rotation.x=Math.PI/2; neck.position.set(hx,hy,halfD+0.007); group.add(neck);
+    var k=new THREE.Mesh(new THREE.SphereGeometry(0.013,12,12),hMat);
+    k.position.set(hx,hy,hz+0.004); group.add(k); return;
   }
-  // skoba (kulp çubuğu) - dikey ya da yatay
-  var len=(orient==='v')?0.12:0.16;
-  var geo=(orient==='v')?new THREE.BoxGeometry(0.012,len,0.018):new THREE.BoxGeometry(len,0.012,0.018);
+  if(kind==='profil'){
+    // gola profil: cephe üst kenarında gömme alüminyum kanal
+    var pr=new THREE.Mesh(new THREE.BoxGeometry(orient==='v'?0.02:0.18,orient==='v'?0.14:0.02,0.01),
+      new THREE.MeshStandardMaterial({color:0xb8bec6,roughness:0.3,metalness:0.8}));
+    pr.position.set(hx,hy,halfD+0.004); group.add(pr); return;
+  }
+  if(kind==='rail'){
+    // reyling: uzun ince boru + 2 ayak
+    var len=(orient==='v')?0.16:0.20;
+    var tube=new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,len,10),hMat);
+    if(orient!=='v') tube.rotation.z=Math.PI/2;
+    tube.position.set(hx,hy,hz+0.008); group.add(tube);
+    [-len/2+0.015,len/2-0.015].forEach(function(off){
+      var leg=new THREE.Mesh(new THREE.CylinderGeometry(0.004,0.004,0.016,8),hMat);
+      leg.rotation.x=Math.PI/2;
+      leg.position.set(orient==='v'?hx:hx+off, orient==='v'?hy+off:hy, halfD+0.008);
+      group.add(leg);
+    });
+    return;
+  }
+  // skoba (varsayılan): çubuk + 2 ayak (gerçek kulp gibi)
+  var len2=(orient==='v')?0.12:0.16;
+  var geo=(orient==='v')?new THREE.BoxGeometry(0.011,len2,0.011):new THREE.BoxGeometry(len2,0.011,0.011);
   var bar=new THREE.Mesh(geo,hMat);
-  bar.position.set(hx,hy,hz); group.add(bar);
+  bar.position.set(hx,hy,hz+0.008); group.add(bar);
+  [-len2/2+0.012,len2/2-0.012].forEach(function(off){
+    var leg=new THREE.Mesh(new THREE.CylinderGeometry(0.0045,0.0045,0.016,8),hMat);
+    leg.rotation.x=Math.PI/2;
+    leg.position.set(orient==='v'?hx:hx+off, orient==='v'?hy+off:hy, halfD+0.008);
+    group.add(leg);
+  });
 }
 
 function layoutRow(){
@@ -1151,7 +1303,7 @@ function layoutRow(){
 var countertopGroup=null;
 function buildCountertop(){
   if(countertopGroup){ scene.remove(countertopGroup); countertopGroup=null; }
-  if(!room.countertop) return;
+  if(!room.countertop||!vis.countertop) return;
   var bases=modules.filter(function(m){ return m.type.indexOf('base')===0; });
   if(!bases.length) return;
   countertopGroup=new THREE.Group();
@@ -1245,11 +1397,22 @@ function updateStats(){
 function setTxt(id,v){ var e=document.getElementById(id); if(e) e.textContent=v; }
 
 // ════════ PALETTE UI ════════
+// ── SVG İKONLAR (temiz çizgi ikonlar, emoji yerine) ──
+var ICONS={
+  room:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11L12 3l9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>',
+  base:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="9" width="16" height="11" rx="1"/><path d="M3 7h18"/><path d="M12 9v11"/><circle cx="9.5" cy="14" r="0.8" fill="currentColor"/><circle cx="14.5" cy="14" r="0.8" fill="currentColor"/></svg>',
+  wall:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="4" width="16" height="9" rx="1"/><path d="M12 4v9"/><path d="M8 16v2M16 16v2"/><circle cx="9.5" cy="8.5" r="0.8" fill="currentColor"/><circle cx="14.5" cy="8.5" r="0.8" fill="currentColor"/></svg>',
+  tall:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="7" y="3" width="10" height="18" rx="1"/><path d="M7 12h10"/><circle cx="14.5" cy="8" r="0.8" fill="currentColor"/><circle cx="14.5" cy="16" r="0.8" fill="currentColor"/></svg>',
+  wr:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M12 3v18"/><path d="M4 8h16"/><circle cx="10" cy="13" r="0.8" fill="currentColor"/><circle cx="14" cy="13" r="0.8" fill="currentColor"/></svg>',
+  tech:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2"/><circle cx="12" cy="13" r="4"/><path d="M4 8h16"/><circle cx="7" cy="6" r="0.7" fill="currentColor"/><circle cx="10" cy="6" r="0.7" fill="currentColor"/></svg>',
+  decor:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v3M12 6c-3 0-5 2-5 5v9h10v-9c0-3-2-5-5-5z"/><path d="M9 14h6"/></svg>'
+};
 function renderTabs(){
   var wrap=document.getElementById('paletteTabs'); if(!wrap) return;
   wrap.innerHTML=CATALOG.map(function(c){
+    var ic=ICONS[c.id] ? '<span class="pico" style="width:22px;height:22px;display:inline-flex">'+ICONS[c.id]+'</span>' : '<span class="pico">'+c.ico+'</span>';
     return '<button class="ptab" data-tab="'+c.id+'" onclick="openPalette(\''+c.id+'\')">'+
-      '<span class="pico">'+c.ico+'</span><span>'+c.tab+'</span></button>';
+      ic+'<span>'+c.tab+'</span></button>';
   }).join('');
 }
 
@@ -1486,6 +1649,43 @@ function renderProps(){
     '</div></div>';
   }
 
+  // ── COOHOM K2: İÇ YAPILANDIRICI (внутреннее наполнение) ──
+  if(!isDrawer){
+    var inr = m.interior || {};
+    var shelvesN = inr.shelves!==undefined ? inr.shelves : Math.max(1,Math.round(m.h/0.35)-1);
+    html+='<div class="prop-row" style="border-top:1px solid var(--line);padding-top:12px">'+
+      '<label style="color:var(--orange)">🗄️ Внутреннее наполнение</label>'+
+      '<div style="font-size:10px;color:var(--gray2);margin-bottom:8px">Скройте фасад чтобы увидеть внутри</div>'+
+      // raf sayısı
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+        '<span style="font-size:12px;flex:1">Полки</span>'+
+        '<button onclick="setInterior(\'shelves\',-1)" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-size:16px;cursor:pointer">−</button>'+
+        '<b style="min-width:24px;text-align:center">'+shelvesN+'</b>'+
+        '<button onclick="setInterior(\'shelves\',1)" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-size:16px;cursor:pointer">+</button>'+
+      '</div>'+
+      // dikey bölme
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+        '<span style="font-size:12px;flex:1">Перегородка</span>'+
+        '<button onclick="setInterior(\'divider\',0)" style="padding:7px 12px;border-radius:8px;border:1px solid '+(!inr.divider?'var(--orange)':'var(--line)')+';background:'+(!inr.divider?'#fff7ed':'var(--panel2)')+';font-size:11px;font-weight:700;cursor:pointer">Нет</button>'+
+        '<button onclick="setInterior(\'divider\',1)" style="padding:7px 12px;border-radius:8px;border:1px solid '+(inr.divider?'var(--orange)':'var(--line)')+';background:'+(inr.divider?'#fff7ed':'var(--panel2)')+';font-size:11px;font-weight:700;cursor:pointer">Есть</button>'+
+      '</div>'+
+      // iç çekmece
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
+        '<span style="font-size:12px;flex:1">Внутр. ящики</span>'+
+        '<button onclick="setInterior(\'innerDrawers\',-1)" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-size:16px;cursor:pointer">−</button>'+
+        '<b style="min-width:24px;text-align:center">'+(inr.innerDrawers||0)+'</b>'+
+        '<button onclick="setInterior(\'innerDrawers\',1)" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-size:16px;cursor:pointer">+</button>'+
+      '</div>'+
+      // askı borusu (yüksek dolaplar)
+      (m.h>1.2?
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        '<span style="font-size:12px;flex:1">Штанга (одежда)</span>'+
+        '<button onclick="setInterior(\'rod\',0)" style="padding:7px 12px;border-radius:8px;border:1px solid '+(!inr.rod?'var(--orange)':'var(--line)')+';background:'+(!inr.rod?'#fff7ed':'var(--panel2)')+';font-size:11px;font-weight:700;cursor:pointer">Нет</button>'+
+        '<button onclick="setInterior(\'rod\',1)" style="padding:7px 12px;border-radius:8px;border:1px solid '+(inr.rod?'var(--orange)':'var(--line)')+';background:'+(inr.rod?'#fff7ed':'var(--panel2)')+';font-size:11px;font-weight:700;cursor:pointer">Есть</button>'+
+      '</div>':'')+
+    '</div>';
+  }
+
   html+='<div class="prop-row" style="border-top:1px solid var(--line);padding-top:12px">'+
     '<label>📍 Положение (двигай или кнопками)</label>'+
     '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px">'+
@@ -1545,6 +1745,7 @@ function clampToRoom(m){
 // modülün doğru y (yükseklik) konumunu uygula - alt yerde, üst yukarıda
 function modBaseY(m){
   if(m.type.indexOf('wall')===0) return 1.45 + m.h/2;   // üst dolap (asılı)
+  if(m.type==='column'||m.type==='table'||m.type==='chair') return m.h/2;  // dekor: zeminde, ayaksız
   var legH = (m.legs!==undefined ? m.legs : 0.1);        // ayak yüksekliği
   return legH + m.h/2;                                   // alt/penal: ayakların üstünde
 }
@@ -1632,6 +1833,24 @@ function rebuildSelected(){
 function setLegs(mm){
   if(!selected) return;
   selected.legs = mm/1000;
+  rebuildSelected();
+}
+
+// COOHOM K2: iç yapılandırma (raf/bölme/iç çekmece/askı)
+function setInterior(key,val){
+  if(!selected) return;
+  if(!selected.interior) selected.interior={};
+  var inr=selected.interior;
+  if(key==='shelves'){
+    var cur = inr.shelves!==undefined ? inr.shelves : Math.max(1,Math.round(selected.h/0.35)-1);
+    inr.shelves = Math.max(0, Math.min(8, cur+val));
+  }
+  else if(key==='divider') inr.divider = val;
+  else if(key==='innerDrawers'){
+    var c2 = inr.innerDrawers||0;
+    inr.innerDrawers = Math.max(0, Math.min(4, c2+val));
+  }
+  else if(key==='rod') inr.rod = val;
   rebuildSelected();
 }
 
@@ -1737,7 +1956,7 @@ function selectFromList(i){
 // ════════ HISTORY ════════
 function snapshot(){
   return modules.map(function(m){ return {id:m.id,type:m.type,name:m.name,w:m.w,h:m.h,d:m.d,x:m.x,z:m.z,color:m.color,handle:m.handle,hideFront:m.hideFront,rot:m.rot,_manual:m._manual,
-    fRail:m.fRail,drawers:m.drawers,fHinge:m.fHinge,fLift:m.fLift,fCargo:m.fCargo,finish:m.finish,legs:m.legs,facadeMat:m.facadeMat,wall:m.wall}; });
+    fRail:m.fRail,drawers:m.drawers,fHinge:m.fHinge,fLift:m.fLift,fCargo:m.fCargo,finish:m.finish,legs:m.legs,facadeMat:m.facadeMat,wall:m.wall,interior:m.interior}; });
 }
 function pushHist(){ hist=hist.slice(0,histIdx+1); hist.push(snapshot()); histIdx++; }
 function undo(){
@@ -2085,10 +2304,12 @@ function computeDetailing(){
         parts.push({mod:tag,part:'Фасад (дверь)',w:W-4,h:H-4,qty:1,edge:'4 стороны'});
       }
     }
-    // raflar (penal)
-    if(m.type.indexOf('tall')===0||m.type.indexOf('wr')===0){
-      parts.push({mod:tag,part:'Полка',w:W-2*t,h:D-20,qty:3,edge:'1 длинная'});
-    }
+    // raflar - interior varsa manuel sayı, yoksa tall için varsayılan
+    var inrD=m.interior||{};
+    var shelfN = inrD.shelves!==undefined ? inrD.shelves : ((m.type.indexOf('tall')===0||m.type.indexOf('wr')===0)?3:0);
+    if(shelfN>0) parts.push({mod:tag,part:'Полка',w:W-2*t,h:D-20,qty:shelfN,edge:'1 длинная'});
+    if(inrD.divider) parts.push({mod:tag,part:'Перегородка',w:D-20,h:H-2*t,qty:1,edge:'1 длинная'});
+    if(inrD.innerDrawers) parts.push({mod:tag,part:'Внутр. ящик (комплект)',w:W-2*t-20,h:150,qty:inrD.innerDrawers,edge:'по кругу'});
   });
   return parts;
 }
