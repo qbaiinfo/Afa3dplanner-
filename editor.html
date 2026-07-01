@@ -154,7 +154,7 @@
   <div class="tb-left">
     <button class="tb-back" onclick="goBack()">←</button>
     <span class="tb-title" id="projTitle">Проект</span>
-    <span class="tb-ver">v6.5</span>
+    <span class="tb-ver">v6.6</span>
   </div>
   <div class="tb-actions">
     <button class="tb-btn" onclick="toggleList()" title="Список">📑</button>
@@ -367,7 +367,10 @@ var CATALOG=[
     {type:'fridge',ico:'🧊', name:'Холод.',  w:600,h:1800,d:650},
     {type:'stove', ico:'🔥', name:'Плита',   w:600,h:850, d:600},
     {type:'hood',  ico:'💨', name:'Вытяжка', w:600,h:400, d:500},
-    {type:'dishw', ico:'🍽️', name:'Посудом.',w:600,h:850, d:600}
+    {type:'dishw', ico:'🍽️', name:'Посудом.',w:600,h:850, d:600},
+    {type:'base_oven',  ico:'♨️', name:'Духовка встр.',  w:600,h:720,d:560},
+    {type:'base_hob',   ico:'🔥', name:'Варочная встр.', w:600,h:720,d:560},
+    {type:'base_dishwB',ico:'🍽️', name:'Посудом. встр.', w:600,h:720,d:560}
   ]},
   {id:'decor', tab:'Декор', ico:'🪴', items:[
     {type:'table', ico:'🪑', name:'Стол',   w:1200,h:750,d:700},
@@ -762,6 +765,10 @@ function addModule(type){
     type:type, name:info.name, w:w, h:h, d:d,
     x:offX+w/2, z:0, color:'#c8915a', mesh:null
   };
+  // dekor/serbest eşyalar sıraya dizilmez - odanın ortasına konur
+  if(type==='island'||type==='table'||type==='chair'||type==='column'){
+    mod._manual=true; mod.x=0; mod.z=Math.max(0, room.depth/2-1.2);
+  }
   buildMesh(mod);
   modules.push(mod);
   pushHist();
@@ -1112,6 +1119,26 @@ function buildMesh(mod){
     } else if(mod.type.indexOf('open')>=0 || mod.type==='wall_open'){
       // açık raf - cephe yok, iç raf koy
       panel(w-2*t,t,d-0.02, 0, 0, 0);             // orta raf
+    } else if(mod.type==='base_oven'){
+      // ── ANKASTRE FIRIN: paslanmaz ön + cam + sap + kontrol şeridi ──
+      var stM=new THREE.MeshStandardMaterial({color:0xc8ccd2,roughness:0.35,metalness:0.7});
+      var dkM=new THREE.MeshStandardMaterial({color:0x1a1d22,roughness:0.18,metalness:0.55});
+      var front=new THREE.Mesh(new THREE.BoxGeometry(w-2*gap,h-2*gap,t),stM);
+      front.position.set(0,0,d/2-t/2+0.002); g.add(front);
+      var oGlass=new THREE.Mesh(new THREE.BoxGeometry(w*0.72,h*0.5,0.012),dkM);
+      oGlass.position.set(0,-h*0.08,d/2+0.006); g.add(oGlass);
+      var oStrip=new THREE.Mesh(new THREE.BoxGeometry(w*0.72,0.05,0.01),dkM);
+      oStrip.position.set(0,h/2-0.08,d/2+0.005); g.add(oStrip);
+      var chM=new THREE.MeshStandardMaterial({color:0x9aa2ac,roughness:0.25,metalness:0.85});
+      var oBar=new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.009,w*0.68,10),chM);
+      oBar.rotation.z=Math.PI/2; oBar.position.set(0,h*0.22,d/2+0.028); g.add(oBar);
+    } else if(mod.type==='base_dishwB'){
+      // ── GÖMÜLÜ ПОСУДОМОЙКА: mobilya paneli önlü + üst kontrol şeridi ──
+      makeFacade(g,faces,faceColor,finish,w-2*gap,h-2*gap,t, 0,0,d/2-t/2+0.002);
+      var dwStrip=new THREE.Mesh(new THREE.BoxGeometry(w-0.03,0.045,0.012),
+        new THREE.MeshStandardMaterial({color:0x1a1d22,roughness:0.2,metalness:0.5}));
+      dwStrip.position.set(0,h/2-0.045,d/2+0.005); g.add(dwStrip);
+      addHandle(g,mod, 0, h/2-0.11, d/2,'h');
     } else {
       // ── PARAMETRİK KAPILAR (Coohom mantığı) ──
       // kapı sayısı genişliğe göre otomatik: <550=1, <1100=2, üstü=3
@@ -1280,6 +1307,32 @@ function buildMesh(mod){
       var sc=new THREE.Mesh(new THREE.SphereGeometry(0.02,8,8),screwMat);
       sc.position.set(c[0],c[1],d/2+0.03); sc.renderOrder=999; g.add(sc);
     });
+  }
+
+  // ── VAROCHNAYA (base_hob): tezgah üstünde siyah cam tabla + 4 göz ──
+  if(mod.type==='base_hob'){
+    var hobM=new THREE.MeshStandardMaterial({color:0x14161a,roughness:0.15,metalness:0.4});
+    var hobTop=new THREE.Mesh(new THREE.BoxGeometry(w-0.04,0.014,d-0.06),hobM);
+    hobTop.position.set(0,h/2+0.048,0); g.add(hobTop);   // tezgah (0.04) üstünde
+    var bMat=new THREE.MeshStandardMaterial({color:0x33383f,roughness:0.4,metalness:0.5});
+    [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(function(p){
+      var bz=new THREE.Mesh(new THREE.CylinderGeometry(0.062,0.062,0.008,16),bMat);
+      bz.position.set(p[0]*w*0.2,h/2+0.058,p[1]*d*0.18); g.add(bz);
+    });
+  }
+
+  // ── COOHOM K4 — ADA (остров): kendi tezgahı + arka dekor paneli ──
+  if(mod.type==='island'){
+    var islCt=new THREE.Mesh(new THREE.BoxGeometry(w+0.08,0.04,d+0.12),
+      room.ctWood ? new THREE.MeshStandardMaterial({map:makeWoodTexture(room.ctColor? '#'+room.ctColor.toString(16).padStart(6,'0') : '#b8895a'),roughness:0.55})
+                  : new THREE.MeshStandardMaterial({color:room.ctColor,roughness:0.5}));
+    islCt.position.set(0,h/2+0.02,0.01); islCt.castShadow=true; islCt.receiveShadow=true;
+    g.add(islCt);
+    // arka dekor paneli (ada ortada durur, arkası görünür)
+    var backP=new THREE.Mesh(new THREE.BoxGeometry(w-0.004,h-0.004,0.018),
+      new THREE.MeshStandardMaterial({color:mod.color,roughness:0.65}));
+    backP.position.set(0,0,-d/2+0.01); g.add(backP);
+    if(mod._faces) mod._faces.push(backP);
   }
 
   g.position.set(mod.x, mod.h/2, mod.z);
@@ -1615,6 +1668,10 @@ function itemIcon(it){
     s='<path d="M4 12h24M6 12v14M26 12v14" '+st+'/>';
   } else if(t==='chair'){
     s='<path d="M10 6v16M10 16h12v6M10 22v4M22 22v4" '+st+'/>';
+  } else if(t.indexOf('hob')>=0){
+    s='<path d="M3 6h26" '+st+' stroke-width="2.4"/>'+
+      '<rect x="5" y="9" width="22" height="19" rx="1" '+st+'/>'+
+      '<circle cx="11" cy="6" r="2.4" '+st+'/><circle cx="21" cy="6" r="2.4" '+st+'/>';
   } else if(t.indexOf('oven')>=0||t.indexOf('stove')>=0){
     s='<rect x="5" y="6" width="22" height="22" rx="2" '+st+'/>'+
       '<circle cx="16" cy="19" r="5.5" '+st+'/><path d="M5 12h22" '+st+'/>'+
@@ -1880,7 +1937,7 @@ function clampToRoom(m){
 function modBaseY(m){
   if(m.type==='hood') return 1.5 + m.h/2;               // davlumbaz: tezgah üstünde asılı
   if(m.type.indexOf('wall')===0) return 1.45 + m.h/2;   // üst dolap (asılı)
-  if(m.type==='column'||m.type==='table'||m.type==='chair'||m.type==='fridge'||m.type==='stove'||m.type==='dishw') return m.h/2;  // dekor+cihaz: zeminde
+  if(m.type==='column'||m.type==='table'||m.type==='chair'||m.type==='island'||m.type==='fridge'||m.type==='stove'||m.type==='dishw') return m.h/2;  // dekor+cihaz: zeminde
   var legH = (m.legs!==undefined ? m.legs : 0.1);        // ayak yüksekliği
   return legH + m.h/2;                                   // alt/penal: ayakların üstünde
 }
